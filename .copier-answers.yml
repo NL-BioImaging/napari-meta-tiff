@@ -1,0 +1,18 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v2.3.0
+_src_path: https://github.com/napari/napari-plugin-template
+display_name: Metadata Tiff
+email: folterj@gmail.com
+full_name: Joost de Folter
+github_repository_url: provide later
+github_username_or_organization: folterj
+include_reader_plugin: true
+include_sample_data_plugin: false
+include_widget_plugin: false
+include_writer_plugin: false
+install_dependabot: true
+install_precommit: false
+license: MIT
+module_name: napari_meta_tiff
+plugin_name: napari-meta-tiff
+short_description: napari tiff reader with extended metadata

@@ -1,0 +1,15 @@
+name: napari-meta-tiff
+display_name: Metadata Tiff
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
+# categories: []
+contributions:
+  commands:
+    - id: napari-meta-tiff.get_reader
+      python_name: napari_meta_tiff._reader:napari_get_reader
+      title: Open data with Metadata Tiff
+  readers:
+    - command: napari-meta-tiff.get_reader
+      accepts_directories: false
+      filename_patterns: ['*.npy']
