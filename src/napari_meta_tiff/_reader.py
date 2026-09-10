@@ -10,6 +10,7 @@ from enum import Enum
 import logging
 from tifffile import TiffFile, xml2dict
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from xml.etree.ElementTree import ParseError
 
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,12 @@ PRIVATE_TAG_CODE = 32768
 # baseline tags naming the instrument that produced the image, which
 # vendors that do not use a private tag at all still fill in
 IDENTITY_TAG_NAMES = ('Make', 'Model', 'Software', 'HostComputer')
+
+# ElementTree expands a namespaced xml attribute into a {namespace}name
+# key. Attributes in this namespace, such as xsi:type and
+# xsi:noNamespaceSchemaLocation, describe the document rather than the
+# image, and vendors sprinkle them at every level of their schema.
+XSI_NAMESPACE = '{http://www.w3.org/2001/XMLSchema-instance}'
 
 
 def napari_get_reader(path: PathLike) -> Optional[ReaderFunction]:
@@ -150,23 +157,19 @@ def unwrap_metadata(value: Any) -> Any:
 
     Vendors store their metadata as an xml document, as a nested mapping,
     or as a mapping behind a single key naming their own schema, so
-    reduce all of those to the fields themselves. References to xml
-    schemas are dropped, as they describe the document rather than the
-    image.
+    reduce all of those to the fields themselves.
     """
     if isinstance(value, Enum):
         return value.name
-    if isinstance(value, bytes):
-        return value
     if isinstance(value, str):
-        if '<?xml' not in value.lower():
+        parsed = parse_xml(value)
+        if parsed is None:
             return value
-        value = xml2dict(value)
+        value = parsed
+    value = drop_document_details(value)
     if not isinstance(value, dict):
         return value
 
-    value = {key: item for key, item in value.items()
-             if not is_schema_reference(item)}
     # a lone key naming the vendor's schema, such as OME, FeiImage or
     # Fibics, only nests the fields one level deeper
     if len(value) == 1:
@@ -176,6 +179,37 @@ def unwrap_metadata(value: Any) -> Any:
     return value
 
 
-def is_schema_reference(value: Any) -> bool:
-    """Return whether value points at an xml schema rather than data."""
-    return isinstance(value, str) and '.xsd' in value.lower()
+def parse_xml(value: str) -> Optional[Dict]:
+    """Return value parsed as an xml document, or None if it is not one.
+
+    The xml declaration is optional, and vendors do leave it out, so
+    rather than looking for one, hand anything that opens like a
+    document to the parser and let it decide.
+    """
+    if not value.lstrip().startswith('<'):
+        return None
+    try:
+        return xml2dict(value)
+    except ParseError:
+        return None
+
+
+def drop_document_details(value: Any) -> Any:
+    """Recursively drop the entries describing the xml document itself.
+
+    The plumbing appears at every level of a vendor's schema, not just
+    at the top, so this has to walk the whole tree.
+    """
+    if isinstance(value, dict):
+        return {key: drop_document_details(item)
+                for key, item in value.items()
+                if not is_document_detail(key, item)}
+    if isinstance(value, list):
+        return [drop_document_details(item) for item in value]
+    return value
+
+
+def is_document_detail(key: Any, value: Any) -> bool:
+    """Return whether an entry describes the document, not the image."""
+    return ((isinstance(key, str) and key.startswith(XSI_NAMESPACE))
+            or (isinstance(value, str) and '.xsd' in value.lower()))
