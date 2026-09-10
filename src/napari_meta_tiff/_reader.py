@@ -71,7 +71,7 @@ def reader_function(path: PathLike) -> List[LayerData]:
 
 
 def tifffile_reader(tif: TiffFile) -> List[LayerData]:
-    # Reused from napari_tiff_reader
+    # Reused from napari_tiff_reader - but always open as lazy zarr
     """Return napari LayerData from image series in TIFF file."""
     import zarr
     store = tif.aszarr(multiscales=True)
