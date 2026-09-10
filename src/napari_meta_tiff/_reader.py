@@ -18,6 +18,14 @@ LayerData = Union[Tuple[Any], Tuple[Any, Dict], Tuple[Any, Dict, str]]
 PathLike = Union[str, List[str]]
 ReaderFunction = Callable[[PathLike], List[LayerData]]
 
+# TIFF reserves tag codes at or above this for a vendor's private use:
+# https://www.awaresystems.be/imaging/tiff/tifftags/private.html
+PRIVATE_TAG_CODE = 32768
+
+# baseline tags naming the instrument that produced the image, which
+# vendors that do not use a private tag at all still fill in
+IDENTITY_TAG_NAMES = ('Make', 'Model', 'Software', 'HostComputer')
+
 
 def napari_get_reader(path: PathLike) -> Optional[ReaderFunction]:
     """A basic implementation of a Reader contribution.
@@ -109,76 +117,65 @@ def imagecodecs_reader(path: PathLike) -> List[LayerData]:
     return [(imread(path), {}, "image")]
 
 
-def get_extra_metadata(tif):
-    extra_metadata = {}
+
+def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
+    """Return the vendor metadata in a TIFF file.
+
+    Rather than reading the tags of particular vendors, every private tag
+    is collected and normalised the same way, so that vendors which are
+    not known here are picked up as well. TIFF reserves tag codes at or
+    above 32768 for a vendor's own use, which is where instrument
+    metadata ends up, whereas the baseline tags below that hold the
+    bookkeeping needed to decode the pixels.
+    """
     if tif.is_ome and tif.ome_metadata:
-        metadata = metadata_to_dict(tif.ome_metadata)
-    else:
-        metadata = {key: value for page in tif.pages for key, value in tags_to_dict(page.tags).items()
-                     if key not in ('StripOffsets', 'StripByteCounts', 'TileOffsets', 'TileByteCounts', 'JPEGTables')}
+        return unwrap_metadata(xml2dict(tif.ome_metadata))
 
-    if 'FEI_TITAN' in metadata:
-        extra_metadata = metadata.pop('FEI_TITAN')
-        if isinstance(extra_metadata, str) and '<?xml' in extra_metadata.lower():
-            extra_metadata = metadata_to_dict(extra_metadata)
-        if 'FeiImage' in extra_metadata:
-            extra_metadata = extra_metadata['FeiImage']
-        extra_metadata = {key: value for key, value in extra_metadata.items()
-                                if not (isinstance(value, str) and '.xsd' in value.lower())}
-        metadata['FeiImage'] = extra_metadata
-        metadata['manufacturer'] = 'FEI'
-        instrument = extra_metadata.get('instrument', extra_metadata)
-        metadata['model'] = instrument.get('edition', instrument.get('type', 'Titan'))
-        metadata['serial'] = instrument.get('uniqueID')
-    elif 'FEI_HELIOS' in metadata:
-        extra_metadata = metadata['FEI_HELIOS']
-        metadata['manufacturer'] = 'FEI'
-        metadata['model'] = extra_metadata.get('System', {}).get('ProductName', 'Helios')
-    elif 'FibicsXML' in metadata:
-        extra_metadata = metadata.pop('FibicsXML')
-        if isinstance(extra_metadata, str) and '<?xml' in extra_metadata.lower():
-            extra_metadata = metadata_to_dict(extra_metadata)
-        if 'Fibics' in extra_metadata:
-            extra_metadata = extra_metadata['Fibics']
-        extra_metadata = {key: value for key, value in extra_metadata.items()
-                                if not (isinstance(value, str) and '.xsd' in value.lower())}
-        metadata['Fibics'] = extra_metadata
-        application_version = extra_metadata.get('Application', {}).get('Version', '').split()
-        if len(application_version) >= 2:
-            metadata['manufacturer'] = application_version[0]
-            metadata['model'] = application_version[1]
-    elif 'OlympusSIS' in metadata:
-        extra_metadata = metadata['OlympusSIS']
-    else:
-        if 'Make' in metadata:
-            extra_metadata['Make'] = metadata['Make']
-        if 'Model' in metadata:
-            extra_metadata['Model'] = metadata['Model']
-
+    extra_metadata = {}
+    for page in tif.pages:
+        for tag in page.tags.values():
+            if tag.code >= PRIVATE_TAG_CODE:
+                value = unwrap_metadata(tag.value)
+                if value not in (None, '', {}):
+                    # key by tag name, so several vendor tags in one file
+                    # cannot overwrite each other
+                    extra_metadata.setdefault(tag.name, value)
+            elif tag.name in IDENTITY_TAG_NAMES:
+                extra_metadata.setdefault(tag.name, tag.value)
     return extra_metadata
 
 
-def metadata_to_dict(xml_metadata):
-    metadata = xml2dict(xml_metadata)
-    if 'OME' in metadata:
-        metadata = metadata['OME']
-    return metadata
+def unwrap_metadata(value: Any) -> Any:
+    """Reduce a metadata value to the fields it actually holds.
 
-
-def tags_to_dict(tags):
+    Vendors store their metadata as an xml document, as a nested mapping,
+    or as a mapping behind a single key naming their own schema, so
+    reduce all of those to the fields themselves. References to xml
+    schemas are dropped, as they describe the document rather than the
+    image.
     """
-    Converts TIFF tags to a dictionary.
+    if isinstance(value, Enum):
+        return value.name
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, str):
+        if '<?xml' not in value.lower():
+            return value
+        value = xml2dict(value)
+    if not isinstance(value, dict):
+        return value
 
-    Args:
-        tags: TIFF tags object.
+    value = {key: item for key, item in value.items()
+             if not is_schema_reference(item)}
+    # a lone key naming the vendor's schema, such as OME, FeiImage or
+    # Fibics, only nests the fields one level deeper
+    if len(value) == 1:
+        (item,) = value.values()
+        if isinstance(item, dict):
+            return item
+    return value
 
-    Returns:
-        dict: Tag name-value mapping.
-    """
-    tag_dict = {}
-    for tag in tags.values():
-        value = tag.value
-        if isinstance(value, Enum):
-            value = value.name
-        tag_dict[tag.name] = value
-    return tag_dict
+
+def is_schema_reference(value: Any) -> bool:
+    """Return whether value points at an xml schema rather than data."""
+    return isinstance(value, str) and '.xsd' in value.lower()
