@@ -12,4 +12,4 @@ contributions:
   readers:
     - command: napari-meta-tiff.get_reader
       accepts_directories: false
-      filename_patterns: ['*.npy']
+      filename_patterns: ['*.tiff', '*.tif']
