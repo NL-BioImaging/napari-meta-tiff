@@ -1,19 +1,24 @@
+"""Tests for the reader contribution and the layer data it returns.
+
+Run this module to execute the tests by hand:
+
+    python -m tests.test_reader
+"""
+
 import numpy as np
-from tifffile import TiffFile, TiffWriter, imwrite
+from tifffile import TiffFile
 
 from napari_meta_tiff._reader import napari_get_reader
+
+from tests._dummy_tiff import write_dummy_tiff, write_pyramid_tiff
 
 
 # tmp_path is a pytest fixture
 def test_reader(tmp_path):
     """An example of how you might test your plugin."""
-
     # write some fake data using your supported file format
-    # we make the array an integer type to be compatible with the reader
-    data = np.random.randint(0, 256, size=(16, 16), dtype=np.uint8)
-    metadata = {'test_metadata': 'test metadata'}
     path = str(tmp_path / 'dummy.tif')
-    imwrite(path, data, metadata=metadata)
+    data = write_dummy_tiff(path)
 
     reader = napari_get_reader(path)
     assert reader is not None
@@ -33,20 +38,8 @@ def test_reader(tmp_path):
 def test_reader_pyramid(tmp_path):
     """Test reading a pyramidal TIFF file with 4 resolution levels."""
     nlevels = 4
-    size = 512
-    # write a pyramidal tiff: full resolution image plus 3 downsampled subifds
-    levels = [
-        np.random.randint(0, 256, size=(size // 2**level, size // 2**level),
-                          dtype=np.uint8)
-        for level in range(nlevels)
-    ]
-    metadata = {'test_metadata': 'test metadata'}
     path = str(tmp_path / 'dummy_pyramid.tif')
-    with TiffWriter(path) as tif:
-        tif.write(levels[0], tile=(128, 128), subifds=nlevels - 1,
-                  metadata=metadata)
-        for level_data in levels[1:]:
-            tif.write(level_data, tile=(128, 128), subfiletype=1)
+    levels = write_pyramid_tiff(path, nlevels=nlevels)
 
     # make sure the file really has the expected number of levels
     with TiffFile(path) as tif:
