@@ -8,7 +8,7 @@ import os
 import struct
 
 import numpy as np
-from tifffile import TiffWriter, imwrite
+from tifffile import TiffFile, TiffWriter, imwrite
 
 
 TEST_METADATA = {'test_metadata': 'test metadata'}
@@ -130,4 +130,50 @@ def write_exif_tiff(path: str, size: int = 16) -> np.ndarray:
         fh.write(next_ifd)
         fh.seek(4)
         fh.write(struct.pack(byteorder + 'I', main_offset))
+    return data
+
+
+# a private tag code tifffile knows nothing about, so its value is
+# collected the way a vendor's own tag is
+VENDOR_TAG_CODE = 65000
+
+
+def write_vendor_tiff(path: str, xml: str, size: int = 16) -> np.ndarray:
+    """Write a tiff carrying a vendor xml document in a private tag."""
+    return write_dummy_tiff(path, size=size,
+                            extratags=[(VENDOR_TAG_CODE, 's', 0, xml, True)])
+
+
+def write_resolution_tiff(path: str, resolution, unit: str = 'CENTIMETER',
+                          size: int = 16) -> np.ndarray:
+    """Write a tiff whose resolution is exactly the rational given.
+
+    tifffile reduces a resolution to its lowest terms, which is the
+    whole point of the degenerate rationals this has to produce, so the
+    written values are patched in place afterwards.
+    """
+    data = dummy_image(size)
+    imwrite(path, data, metadata=TEST_METADATA, resolution=(1, 1),
+            resolutionunit=unit)
+    numerator, denominator = resolution
+    with open(path, 'r+b') as fh:
+        byteorder = '<' if fh.read(2) == b'II' else '>'
+        with TiffFile(path) as tif:
+            offsets = [tif.pages.first.tags[name].valueoffset
+                       for name in ('XResolution', 'YResolution')]
+        for offset in offsets:
+            fh.seek(offset)
+            fh.write(struct.pack(byteorder + 'II', numerator, denominator))
+    return data
+
+
+def write_ome_tiff(path: str, size: int = 16, **pixel_size) -> np.ndarray:
+    """Write an ome-tiff stating the physical size of a pixel."""
+    data = dummy_image(size)
+    metadata = {}
+    for axis, (value, unit) in pixel_size.items():
+        metadata[f'PhysicalSize{axis.upper()}'] = value
+        if unit is not None:
+            metadata[f'PhysicalSize{axis.upper()}Unit'] = unit
+    imwrite(path, data, ome=True, metadata=metadata)
     return data

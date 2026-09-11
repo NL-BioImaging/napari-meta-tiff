@@ -21,8 +21,9 @@ Pass one or more paths to measure real files instead:
 python -m testing.lazy_loading C:/Project/slides/AMC_EM/B/1.tif
 ```
 
-For a real file it first prints the vendor metadata the reader found, and
-then the same read measurements, skipping only the granularity comparison,
+For a real file it first prints the vendor metadata the reader found and
+what that metadata says about space, the pixel size and stage position
+the layer is placed by, and then the same read measurements, skipping only the granularity comparison,
 which needs files written to a known layout.
 
 Without a path it writes an 8192x8192 uint8 BigTIFF pyramid of 5 levels and counts the

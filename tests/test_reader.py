@@ -12,7 +12,8 @@ from napari_meta_tiff._reader import napari_get_reader
 
 from tests._dummy_tiff import (TEST_EXIF, grey_image, rgb_image,
                                write_dummy_tiff, write_exif_tiff,
-                               write_pyramid_tiff, write_series_tiff)
+                               write_pyramid_tiff, write_series_tiff,
+                               write_vendor_tiff)
 
 
 # tmp_path is a pytest fixture
@@ -101,11 +102,39 @@ def test_reader_prefers_largest_series(tmp_path):
     """A thumbnail never wins over the image, whatever its colour."""
     size = 64
     path = str(tmp_path / 'dummy_thumbnail.tif')
-    image, _ = write_series_tiff(path, [grey_image(size), rgb_image(size // 4)])
+    image, _ = write_series_tiff(path, [grey_image(size),
+                                        rgb_image(size // 4)])
 
     data, add_kwargs, _ = napari_get_reader(path)(path)[0]
     level0 = data[0] if add_kwargs['multiscale'] else data
     np.testing.assert_array_equal(image, np.asarray(level0))
+
+
+def test_reader_spatial_kwargs(tmp_path):
+    """The pixel size and the stage position reach the layer data."""
+    path = str(tmp_path / 'dummy_space.tif')
+    write_vendor_tiff(path, '<Vendor><pixelsizex>2.5e-9</pixelsizex>'
+                            '<pixelsizey>2.5e-9</pixelsizey>'
+                            '<Stage><X><value>1.5</value><units>mm</units>'
+                            '</X></Stage></Vendor>')
+
+    _, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    assert add_kwargs['axis_labels'] == ('Y', 'X')
+    assert add_kwargs['scale'] == (2.5e-3, 2.5e-3)
+    assert add_kwargs['units'] == ('um', 'um')
+    # only x was stated, and the axes are ordered as the data is
+    assert add_kwargs['translate'] == (0.0, 1500.0)
+
+
+def test_reader_without_spatial_metadata(tmp_path):
+    """Nothing is claimed about a file that says nothing."""
+    path = str(tmp_path / 'dummy.tif')
+    write_dummy_tiff(path)
+
+    _, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    assert 'scale' not in add_kwargs
+    assert 'translate' not in add_kwargs
+    assert 'units' not in add_kwargs
 
 
 if __name__ == '__main__':
@@ -122,3 +151,5 @@ if __name__ == '__main__':
         test_reader_exif(tmp_path)
         test_reader_prefers_greyscale_series(tmp_path)
         test_reader_prefers_largest_series(tmp_path)
+        test_reader_spatial_kwargs(tmp_path)
+        test_reader_without_spatial_metadata(tmp_path)

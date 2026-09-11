@@ -234,11 +234,24 @@ def print_metadata(metadata):
         print(f'  {key:<22} {text}')
 
 
+def report_space(path, counter):
+    """What the metadata says about where the image sits."""
+    print('\nspace')
+    data, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    counter.report('reading the pixel size and position')
+    if 'scale' not in add_kwargs:
+        print('  no pixel size found, so the layer stays in pixels')
+    for key in ('axis_labels', 'scale', 'units', 'translate'):
+        if key in add_kwargs:
+            print(f'  {key:<22} {add_kwargs[key]}')
+
+
 def report_file(path, counter):
     """Run the reports that do not need a file of a known layout."""
     file_mb = os.path.getsize(path) / 1e6
     print(f'{path}\n  {file_mb:.1f} MB on disk')
     report_metadata(path, counter)
+    report_space(path, counter)
     report_reader(path, file_mb, counter)
     report_napari_layer(path, file_mb, counter)
 

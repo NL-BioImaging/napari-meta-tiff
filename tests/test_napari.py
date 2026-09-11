@@ -19,6 +19,7 @@ from tests._dummy_tiff import (
     TEST_MODEL,
     write_dummy_tiff,
     write_pyramid_tiff,
+    write_vendor_tiff,
 )
 
 napari = pytest.importorskip('napari')
@@ -87,6 +88,43 @@ def test_napari_layer_pyramid(tmp_path):
 
     assert layer.metadata['Make'] == TEST_MAKE
     assert layer.metadata['Model'] == TEST_MODEL
+
+
+def test_napari_layer_in_micrometres(tmp_path):
+    """A layer is placed in micrometres where the metadata says so."""
+    size = 64
+    path = str(tmp_path / 'dummy_space.tif')
+    write_vendor_tiff(path, '<Vendor><pixelWidth><value>0.25</value>'
+                            '<unit>um</unit></pixelWidth><pixelHeight>'
+                            '<value>0.25</value><unit>um</unit></pixelHeight>'
+                            '<Stage><X><value>10</value><units>um</units></X>'
+                            '<Y><value>-4</value><units>um</units></Y>'
+                            '</Stage></Vendor>', size=size)
+
+    viewer = napari.components.ViewerModel()
+    layer = add_layers(viewer, path)[0]
+
+    assert tuple(layer.scale) == (0.25, 0.25)
+    assert tuple(layer.translate) == (-4, 10)     # ordered y, x
+    assert [str(unit) for unit in layer.units] == ['micrometer'] * 2
+    assert tuple(layer.axis_labels) == ('Y', 'X')
+    # a quarter of a micrometre per pixel, from where the stage was:
+    # the far corner is the last pixel, not one past it
+    assert layer.extent.world[1].tolist() == [-4 + (size - 1) * 0.25,
+                                              10 + (size - 1) * 0.25]
+
+
+def test_napari_layer_without_spatial_metadata(tmp_path):
+    """A file saying nothing about space is left in pixels."""
+    path = str(tmp_path / 'dummy.tif')
+    write_dummy_tiff(path)
+
+    viewer = napari.components.ViewerModel()
+    layer = add_layers(viewer, path)[0]
+
+    assert tuple(layer.scale) == (1, 1)
+    assert tuple(layer.translate) == (0, 0)
+    assert [str(unit) for unit in layer.units] == ['pixel'] * 2
 
 
 if __name__ == '__main__':

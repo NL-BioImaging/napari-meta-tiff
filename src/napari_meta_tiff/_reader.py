@@ -6,11 +6,12 @@ implement multiple readers or even other plugin contributions. see:
 https://napari.org/stable/plugins/building_a_plugin/guides.html#readers
 """
 
-from enum import Enum
 import logging
-from tifffile import TiffFile, xml2dict
+from tifffile import TiffFile
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from xml.etree.ElementTree import ParseError
+
+from napari_meta_tiff._metadata import (get_extra_metadata,
+                                        get_pixel_size_um, get_position_um)
 
 
 logger = logging.getLogger(__name__)
@@ -19,28 +20,9 @@ LayerData = Union[Tuple[Any], Tuple[Any, Dict], Tuple[Any, Dict, str]]
 PathLike = Union[str, List[str]]
 ReaderFunction = Callable[[PathLike], List[LayerData]]
 
-# TIFF reserves tag codes at or above this for a vendor's private use:
-# https://www.awaresystems.be/imaging/tiff/tifftags/private.html
-PRIVATE_TAG_CODE = 32768
-
 # tifffile's axis code for the samples of a pixel, the colour of an rgb
 # image, as opposed to the axes over which the image extends
 SAMPLES_AXIS = 'S'
-
-# the Exif tag points at an IFD of standard acquisition fields, such as
-# the exposure time, rather than at a vendor's own structure, so those
-# fields are collected beside the other metadata instead of below it
-EXIF_TAG_NAME = 'ExifTag'
-
-# baseline tags naming the instrument that produced the image, which
-# vendors that do not use a private tag at all still fill in
-IDENTITY_TAG_NAMES = ('Make', 'Model', 'Software', 'HostComputer')
-
-# ElementTree expands a namespaced xml attribute into a {namespace}name
-# key. Attributes in this namespace, such as xsi:type and
-# xsi:noNamespaceSchemaLocation, describe the document rather than the
-# image, and vendors sprinkle them at every level of their schema.
-XSI_NAMESPACE = '{http://www.w3.org/2001/XMLSchema-instance}'
 
 
 def napari_get_reader(path: PathLike) -> Optional[ReaderFunction]:
@@ -149,13 +131,43 @@ def tifffile_reader(tif: TiffFile) -> List[LayerData]:
     # napari does not use this extra `metadata` layer attribute
     # but storing the information on the layer next to the data
     # will allow users to access it and use it themselves if they wish
+    metadata = get_extra_metadata(tif)
     metadata_kwargs = {
-        "metadata": get_extra_metadata(tif),
+        "metadata": metadata,
         # state this explicitly rather than letting napari infer it
         "multiscale": multiscale,
     }
+    metadata_kwargs.update(spatial_kwargs(tif, tif.series[series_index],
+                                          metadata))
 
     return [(data, metadata_kwargs, "image")]
+
+
+def spatial_kwargs(tif: TiffFile, series: Any, metadata: Dict) -> Dict:
+    """Return what the metadata says about where the image sits.
+
+    The pixel size and the stage position are measurements of the scene
+    rather than of the array, so they are handed to napari as the scale
+    and the translate of the layer, which puts the axes in micrometres
+    and two images of one sample where they belong relative to each
+    other. A multiscale layer is scaled by its highest level, from which
+    napari works out the rest.
+    """
+    axes = [axis.lower() for axis in series.axes]
+    shape = dict(zip(axes, series.shape))
+    pixel_size = get_pixel_size_um(tif, metadata, shape)
+    position = get_position_um(metadata)
+
+    kwargs = {"axis_labels": tuple(series.axes)}
+    if pixel_size:
+        kwargs["scale"] = tuple(pixel_size.get(axis, 1.0) for axis in axes)
+        # the samples of a pixel, and any axis nothing was said about,
+        # stay in pixels rather than being called micrometres
+        kwargs["units"] = tuple('um' if axis in pixel_size else 'pixel'
+                                for axis in axes)
+    if position:
+        kwargs["translate"] = tuple(position.get(axis, 0.0) for axis in axes)
+    return kwargs
 
 
 def imagecodecs_reader(path: PathLike) -> List[LayerData]:
@@ -164,103 +176,3 @@ def imagecodecs_reader(path: PathLike) -> List[LayerData]:
     from imagecodecs import imread
 
     return [(imread(path), {}, "image")]
-
-
-
-def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
-    """Return the vendor metadata in a TIFF file.
-
-    Rather than reading the tags of particular vendors, every private tag
-    is collected and normalised the same way, so that vendors which are
-    not known here are picked up as well. TIFF reserves tag codes at or
-    above 32768 for a vendor's own use, which is where instrument
-    metadata ends up, whereas the baseline tags below that hold the
-    bookkeeping needed to decode the pixels.
-
-    The Exif IFD is the exception: its fields are standard rather than a
-    vendor's own, so they are merged in beside the rest instead of being
-    nested behind the name of the tag that points at them.
-    """
-    if tif.is_ome and tif.ome_metadata:
-        return unwrap_metadata(xml2dict(tif.ome_metadata))
-
-    extra_metadata = {}
-    for page in tif.pages:
-        for tag in page.tags.values():
-            if tag.code >= PRIVATE_TAG_CODE:
-                value = unwrap_metadata(tag.value)
-                if value in (None, '', {}):
-                    continue
-                if tag.name == EXIF_TAG_NAME and isinstance(value, dict):
-                    for name, field in value.items():
-                        extra_metadata.setdefault(name, field)
-                else:
-                    # key by tag name, so several vendor tags in one file
-                    # cannot overwrite each other
-                    extra_metadata.setdefault(tag.name, value)
-            elif tag.name in IDENTITY_TAG_NAMES:
-                extra_metadata.setdefault(tag.name, tag.value)
-    return extra_metadata
-
-
-def unwrap_metadata(value: Any) -> Any:
-    """Reduce a metadata value to the fields it actually holds.
-
-    Vendors store their metadata as an xml document, as a nested mapping,
-    or as a mapping behind a single key naming their own schema, so
-    reduce all of those to the fields themselves.
-    """
-    if isinstance(value, Enum):
-        return value.name
-    if isinstance(value, str):
-        parsed = parse_xml(value)
-        if parsed is None:
-            return value
-        value = parsed
-    value = drop_document_details(value)
-    if not isinstance(value, dict):
-        return value
-
-    # a lone key naming the vendor's schema, such as OME, FeiImage or
-    # Fibics, only nests the fields one level deeper
-    if len(value) == 1:
-        (item,) = value.values()
-        if isinstance(item, dict):
-            return item
-    return value
-
-
-def parse_xml(value: str) -> Optional[Dict]:
-    """Return value parsed as an xml document, or None if it is not one.
-
-    The xml declaration is optional, and vendors do leave it out, so
-    rather than looking for one, hand anything that opens like a
-    document to the parser and let it decide.
-    """
-    if not value.lstrip().startswith('<'):
-        return None
-    try:
-        return xml2dict(value)
-    except ParseError:
-        return None
-
-
-def drop_document_details(value: Any) -> Any:
-    """Recursively drop the entries describing the xml document itself.
-
-    The plumbing appears at every level of a vendor's schema, not just
-    at the top, so this has to walk the whole tree.
-    """
-    if isinstance(value, dict):
-        return {key: drop_document_details(item)
-                for key, item in value.items()
-                if not is_document_detail(key, item)}
-    if isinstance(value, list):
-        return [drop_document_details(item) for item in value]
-    return value
-
-
-def is_document_detail(key: Any, value: Any) -> bool:
-    """Return whether an entry describes the document, not the image."""
-    return ((isinstance(key, str) and key.startswith(XSI_NAMESPACE))
-            or (isinstance(value, str) and '.xsd' in value.lower()))
