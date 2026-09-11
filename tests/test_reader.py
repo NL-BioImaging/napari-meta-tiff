@@ -10,7 +10,8 @@ from tifffile import TiffFile
 
 from napari_meta_tiff._reader import napari_get_reader
 
-from tests._dummy_tiff import write_dummy_tiff, write_pyramid_tiff
+from tests._dummy_tiff import (TEST_EXIF, write_dummy_tiff, write_exif_tiff,
+                               write_pyramid_tiff)
 
 
 # tmp_path is a pytest fixture
@@ -63,6 +64,22 @@ def test_reader_pyramid(tmp_path):
         np.testing.assert_allclose(level_data, np.asarray(data[level]))
 
 
+def test_reader_exif(tmp_path):
+    """Exif fields are merged in, rather than nested behind ExifTag."""
+    path = str(tmp_path / 'dummy_exif.tif')
+    write_exif_tiff(path)
+
+    # the file really does hold an Exif IFD behind the pointer tag
+    with TiffFile(path) as tif:
+        assert tif.pages[0].tags['ExifTag'].value
+
+    _, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    metadata = add_kwargs['metadata']
+    assert 'ExifTag' not in metadata
+    for key, value in TEST_EXIF.items():
+        assert metadata[key] == value
+
+
 if __name__ == '__main__':
     from pathlib import Path
     import tempfile
@@ -74,3 +91,4 @@ if __name__ == '__main__':
 
         test_reader_pyramid(tmp_path)
         test_reader(tmp_path)
+        test_reader_exif(tmp_path)

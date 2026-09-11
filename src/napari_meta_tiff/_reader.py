@@ -23,6 +23,11 @@ ReaderFunction = Callable[[PathLike], List[LayerData]]
 # https://www.awaresystems.be/imaging/tiff/tifftags/private.html
 PRIVATE_TAG_CODE = 32768
 
+# the Exif tag points at an IFD of standard acquisition fields, such as
+# the exposure time, rather than at a vendor's own structure, so those
+# fields are collected beside the other metadata instead of below it
+EXIF_TAG_NAME = 'ExifTag'
+
 # baseline tags naming the instrument that produced the image, which
 # vendors that do not use a private tag at all still fill in
 IDENTITY_TAG_NAMES = ('Make', 'Model', 'Software', 'HostComputer')
@@ -85,11 +90,20 @@ def reader_function(path: PathLike) -> List[LayerData]:
     return layerdata
 
 
+def get_best_tiff_serie(tif):
+    serie_index = 0
+    series = tif.series
+    if len(series) > 1:
+        sizes_0 = series[0].sizes
+    return serie_index
+
+
 def tifffile_reader(tif: TiffFile) -> List[LayerData]:
     # Reused from napari_tiff_reader - but always open as lazy zarr
     """Return napari LayerData from image series in TIFF file."""
     import zarr
-    store = tif.aszarr(multiscales=True)
+    series_index = get_best_tiff_serie(tif)
+    store = tif.aszarr(multiscales=True, series=series_index)
     group = zarr.open_group(store=store, mode='r')
     # group iteration order is arbitrary; the multiscales attrs give the
     # authoritative level order (highest resolution first)
@@ -134,6 +148,10 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
     above 32768 for a vendor's own use, which is where instrument
     metadata ends up, whereas the baseline tags below that hold the
     bookkeeping needed to decode the pixels.
+
+    The Exif IFD is the exception: its fields are standard rather than a
+    vendor's own, so they are merged in beside the rest instead of being
+    nested behind the name of the tag that points at them.
     """
     if tif.is_ome and tif.ome_metadata:
         return unwrap_metadata(xml2dict(tif.ome_metadata))
@@ -143,7 +161,12 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
         for tag in page.tags.values():
             if tag.code >= PRIVATE_TAG_CODE:
                 value = unwrap_metadata(tag.value)
-                if value not in (None, '', {}):
+                if value in (None, '', {}):
+                    continue
+                if tag.name == EXIF_TAG_NAME and isinstance(value, dict):
+                    for name, field in value.items():
+                        extra_metadata.setdefault(name, field)
+                else:
                     # key by tag name, so several vendor tags in one file
                     # cannot overwrite each other
                     extra_metadata.setdefault(tag.name, value)
