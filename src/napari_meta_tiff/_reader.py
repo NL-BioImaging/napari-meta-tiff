@@ -23,6 +23,10 @@ ReaderFunction = Callable[[PathLike], List[LayerData]]
 # https://www.awaresystems.be/imaging/tiff/tifftags/private.html
 PRIVATE_TAG_CODE = 32768
 
+# tifffile's axis code for the samples of a pixel, the colour of an rgb
+# image, as opposed to the axes over which the image extends
+SAMPLES_AXIS = 'S'
+
 # the Exif tag points at an IFD of standard acquisition fields, such as
 # the exposure time, rather than at a vendor's own structure, so those
 # fields are collected beside the other metadata instead of below it
@@ -110,13 +114,15 @@ def series_detail(series: Any) -> Tuple[int, bool, int]:
     while the greyscale series is the measurement it came from, often at
     a higher precision, which the last term then ranks.
     """
-    sizes = series.sizes
+    # series.axes names each axis with a single letter code, which
+    # series.sizes spells out ('sample'), so pair the codes with the shape
+    sizes = dict(zip(series.axes, series.shape))
     # S is the samples axis, which holds colour rather than image extent
     pixels = 1
     for axis, size in sizes.items():
-        if axis != 'S':
+        if axis != SAMPLES_AXIS:
             pixels *= size
-    samples = sizes.get('S', 1)
+    samples = sizes.get(SAMPLES_AXIS, 1)
     return (pixels, samples == 1, series.dtype.itemsize)
 
 
