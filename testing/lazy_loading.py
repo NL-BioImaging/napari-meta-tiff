@@ -11,8 +11,13 @@ timings, which are dominated by the page cache on a warm run.
 Run it with:
 
     python -m testing.lazy_loading
+
+Pass a path to measure a real file instead of a written one:
+
+    python -m testing.lazy_loading C:/Project/slides/AMC_EM/B/1.tif
 """
 
+import argparse
 import os
 import tempfile
 
@@ -20,7 +25,8 @@ import numpy as np
 import tifffile
 from tifffile import TiffFile, TiffWriter
 
-from napari_meta_tiff._reader import napari_get_reader
+from napari_meta_tiff._reader import (get_extra_metadata,
+                                      napari_get_reader)
 
 
 SIZE = 8192         # a level 0 of SIZE**2 bytes, 67 MB for uint8
@@ -115,16 +121,20 @@ def report_reader(path, file_mb, counter):
     layer_data = reader(path)
     data, add_kwargs, _ = layer_data[0]
     counter.report(f'reader_function on a {file_mb:.0f} MB file')
-    print(f'    multiscale={add_kwargs["multiscale"]}, levels={len(data)}, '
-          f'level 0 {data[0].shape}, chunks={data[0].chunks}')
+    # a single level file is delivered as a plain array rather than a list
+    levels = data if add_kwargs['multiscale'] else [data]
+    print(f'    multiscale={add_kwargs["multiscale"]}, levels={len(levels)}, '
+          f'level 0 {levels[0].shape}, chunks={levels[0].chunks}')
 
-    level0_mb = data[0].nbytes / 1e6
-    np.asarray(data[0][0, 0])
+    level0_mb = levels[0].nbytes / 1e6
+    np.asarray(levels[0][(0,) * levels[0].ndim])
     one_chunk = counter.report('one pixel of level 0')
-    np.asarray(data[0][2048:3072, 2048:3072])
+    region_slice = tuple(slice(size // 4, size // 4 + 1024)
+                         for size in levels[0].shape[-2:])
+    np.asarray(levels[0][(Ellipsis,) + region_slice])
     region = counter.report('1024x1024 region of level 0')
-    np.asarray(data[-1][:])
-    counter.report(f'entire lowest level {data[-1].shape}')
+    np.asarray(levels[-1][:])
+    counter.report(f'entire lowest level {levels[-1].shape}')
 
     print(f'    level 0 is {level0_mb:.0f} MB, so one pixel costs '
           f'{level0_mb * 1e6 / max(one_chunk, 1):.0f}x less than the level')
@@ -150,7 +160,7 @@ def report_napari_layer(path, file_mb, counter):
     layer._update_thumbnail()
     counter.report('thumbnail generation')
 
-    for level in reversed(range(NLEVELS)):
+    for level in reversed(range(len(layer.level_shapes))):
         layer.data_level = level
         layer.refresh()
         shape = tuple(int(size) for size in layer.level_shapes[level])
@@ -158,17 +168,27 @@ def report_napari_layer(path, file_mb, counter):
 
     # reads scale with the viewport, which is the point of the pyramid:
     # napari only asks for full resolution over a small region
+    extent = [int(size) for size in layer.level_shapes[0]]
     for corners, label in (
-        ([[0, 0], [1024, 1024]], 'level 0, 1024x1024 viewport'),
-        ([[0, 0], [SIZE, SIZE]], 'level 0, whole extent (worst case)'),
+        ([[0] * len(extent), [1024] * len(extent)],
+         'level 0, 1024x1024 viewport'),
+        ([[0] * len(extent), extent], 'level 0, whole extent (worst case)'),
     ):
         layer.data_level = 0
         layer.corner_pixels = np.array(corners)
         layer.refresh()
         np.asarray(layer._slice.image.view)   # as the renderer would
         counter.report(label)
-    print(f'    level 0 in full is {SIZE * SIZE / 1e6:.1f} MB, so the worst '
+    level0 = layer.data[0] if layer.multiscale else layer.data
+    level0_mb = level0.nbytes / 1e6
+    print(f'    level 0 in full is {level0_mb:.1f} MB, so the worst '
           'case genuinely needs every tile')
+
+    # what a user of the plugin actually reaches for: the metadata as it
+    # sits on the layer, which is where napari hands it back to them
+    print('layer.metadata')
+    print(layer.metadata)
+    return layer.metadata
 
 
 def report_granularity(tmpdir, counter):
@@ -192,7 +212,47 @@ def report_granularity(tmpdir, counter):
           'be read\n    in smaller pieces than a full width band')
 
 
-def main():
+def report_metadata(path, counter):
+    """What the reader found in the file's vendor metadata."""
+    print('\nmetadata')
+    with TiffFile(path) as tif:
+        metadata = get_extra_metadata(tif)
+    counter.report('reading the metadata')
+    print_metadata(metadata)
+    return metadata
+
+
+def print_metadata(metadata):
+    """Print one line per metadata field, truncating long values."""
+    if not metadata:
+        print('  no vendor metadata found')
+        return
+    for key, value in metadata.items():
+        text = str(value)
+        if len(text) > 120:
+            text = text[:117] + '...'
+        print(f'  {key:<22} {text}')
+
+
+def report_file(path, counter):
+    """Run the reports that do not need a file of a known layout."""
+    file_mb = os.path.getsize(path) / 1e6
+    print(f'{path}\n  {file_mb:.1f} MB on disk')
+    report_metadata(path, counter)
+    report_reader(path, file_mb, counter)
+    report_napari_layer(path, file_mb, counter)
+
+
+def main(paths=()):
+    if paths:
+        # a real file says nothing about granularity, because its layout
+        # is whatever the vendor wrote, so only the written files below
+        # compare a tiled against a striped layout
+        with ReadCounter() as counter:
+            for path in paths:
+                report_file(path, counter)
+        return
+
     # the reader keeps the tiff open for lazy tile access, so the temporary
     # directory cannot always be removed on Windows
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
@@ -208,5 +268,14 @@ def main():
             report_granularity(tmpdir, counter)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        'paths', nargs='*', metavar='TIFF',
+        help='tiff files to measure; without any, a pyramid is written '
+             'and measured instead')
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    main()
+    main(parse_args().paths)
