@@ -10,8 +10,9 @@ from tifffile import TiffFile
 
 from napari_meta_tiff._reader import napari_get_reader
 
-from tests._dummy_tiff import (TEST_EXIF, write_dummy_tiff, write_exif_tiff,
-                               write_pyramid_tiff)
+from tests._dummy_tiff import (TEST_EXIF, grey_image, rgb_image,
+                               write_dummy_tiff, write_exif_tiff,
+                               write_pyramid_tiff, write_series_tiff)
 
 
 # tmp_path is a pytest fixture
@@ -80,6 +81,33 @@ def test_reader_exif(tmp_path):
         assert metadata[key] == value
 
 
+def test_reader_prefers_greyscale_series(tmp_path):
+    """Of two series of one size, the greyscale one is read, not the RGB."""
+    size = 64
+    path = str(tmp_path / 'dummy_series.tif')
+    rgb, grey = write_series_tiff(path, [rgb_image(size), grey_image(size)])
+
+    with TiffFile(path) as tif:
+        assert len(tif.series) == 2
+
+    data, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    level0 = data[0] if add_kwargs['multiscale'] else data
+    assert level0.shape == grey.shape != rgb.shape
+    assert level0.dtype == grey.dtype
+    np.testing.assert_array_equal(grey, np.asarray(level0))
+
+
+def test_reader_prefers_largest_series(tmp_path):
+    """A thumbnail never wins over the image, whatever its colour."""
+    size = 64
+    path = str(tmp_path / 'dummy_thumbnail.tif')
+    image, _ = write_series_tiff(path, [grey_image(size), rgb_image(size // 4)])
+
+    data, add_kwargs, _ = napari_get_reader(path)(path)[0]
+    level0 = data[0] if add_kwargs['multiscale'] else data
+    np.testing.assert_array_equal(image, np.asarray(level0))
+
+
 if __name__ == '__main__':
     from pathlib import Path
     import tempfile
@@ -92,3 +120,5 @@ if __name__ == '__main__':
         test_reader_pyramid(tmp_path)
         test_reader(tmp_path)
         test_reader_exif(tmp_path)
+        test_reader_prefers_greyscale_series(tmp_path)
+        test_reader_prefers_largest_series(tmp_path)

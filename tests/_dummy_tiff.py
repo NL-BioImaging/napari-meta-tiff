@@ -43,6 +43,29 @@ def write_dummy_tiff(path: str, size: int = 16, extratags=()) -> np.ndarray:
     return data
 
 
+def write_series_tiff(path: str, images) -> list:
+    """Write each image as its own series, in the order given.
+
+    Pages only group into one series when they share a shape and a
+    dtype, so images differing in either, which is what the series
+    ranking has to choose between, land in separate series.
+    """
+    with TiffWriter(path) as tif:
+        for image in images:
+            tif.write(image, metadata=TEST_METADATA, contiguous=False)
+    return list(images)
+
+
+def rgb_image(size: int) -> np.ndarray:
+    """Return an 8 bit RGB rendering of the dummy image."""
+    return np.repeat(dummy_image(size)[:, :, np.newaxis], 3, axis=2)
+
+
+def grey_image(size: int) -> np.ndarray:
+    """Return a 16 bit greyscale version of the dummy image."""
+    return (dummy_image(size).astype(np.uint16) << 8)
+
+
 def write_pyramid_tiff(path: str, nlevels: int = 4, size: int = 512,
                        tile=(128, 128), extratags=()) -> list:
     """Write a pyramidal dummy tiff and return the data of each level.

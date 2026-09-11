@@ -90,12 +90,34 @@ def reader_function(path: PathLike) -> List[LayerData]:
     return layerdata
 
 
-def get_best_tiff_serie(tif):
-    serie_index = 0
-    series = tif.series
-    if len(series) > 1:
-        sizes_0 = series[0].sizes
-    return serie_index
+def get_best_tiff_serie(tif: TiffFile) -> int:
+    """Return the index of the series holding the most image detail.
+
+    A file often carries the same scene more than once: a thumbnail or
+    an overview beside the image, or an RGB rendering beside the raw
+    greyscale data it was made from. Rank them so the richest is read.
+    """
+    return max(range(len(tif.series)),
+               key=lambda index: series_detail(tif.series[index]))
+
+
+def series_detail(series: Any) -> Tuple[int, bool, int]:
+    """Return how much detail a series holds, as a sort key.
+
+    Pixels come first, so a thumbnail never wins over the image itself.
+    Between series of the same size, a greyscale one is preferred over
+    an RGB one: vendors write the RGB series as a rendering for display,
+    while the greyscale series is the measurement it came from, often at
+    a higher precision, which the last term then ranks.
+    """
+    sizes = series.sizes
+    # S is the samples axis, which holds colour rather than image extent
+    pixels = 1
+    for axis, size in sizes.items():
+        if axis != 'S':
+            pixels *= size
+    samples = sizes.get('S', 1)
+    return (pixels, samples == 1, series.dtype.itemsize)
 
 
 def tifffile_reader(tif: TiffFile) -> List[LayerData]:
