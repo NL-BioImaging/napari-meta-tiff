@@ -1,0 +1,154 @@
+{
+  "FEI_TITAN": {
+    "databarHeight": 0,
+    "databarFields": 699,
+    "databarLabel": null,
+    "displayWidth": 0,
+    "pixelWidth": {
+      "unit": "um",
+      "value": 1.143158459049694
+    },
+    "pixelHeight": {
+      "unit": "um",
+      "value": 1.143158459049694
+    },
+    "time": "2024-02-06T13:21:05",
+    "currentUser": null,
+    "integrations": 1,
+    "cropHint": {
+      "left": 0,
+      "top": 0,
+      "right": 1920,
+      "bottom": 1200
+    },
+    "samplePosition": {
+      "x": 0,
+      "y": 0
+    },
+    "multiStage": {
+      "sampleRadius": {
+        "unit": "m",
+        "value": 0
+      },
+      "sampleHeight": {
+        "unit": "m",
+        "value": 0
+      }
+    },
+    "appliedContrast": 5.337209302325581,
+    "appliedBrightness": 0.4808117799649042,
+    "appliedGamma": 1,
+    "displayBlackLevel": 0,
+    "displayWhiteLevel": 1,
+    "samplePressureEstimate": 21.03543261569751,
+    "acquisition": {
+      "scan": {
+        "scanHW": "ZYNQ",
+        "acqHW": "ZYNQ",
+        "dwellTime": {
+          "unit": "ns",
+          "value": 499.9999999999999
+        },
+        "spotSize": 1.3,
+        "spotPresetName": "Image",
+        "rotation": 0,
+        "interlace": 1,
+        "detector": "bsd-all",
+        "detectorMixFactors": {
+          "bsdA": 0,
+          "bsdB": 0,
+          "bsdC": 0,
+          "bsdD": 0,
+          "sed": 0,
+          "stem": 0
+        },
+        "detectors": {
+          "QBSD": {
+            "gain": 45,
+            "offset": -1.444569852509731,
+            "mixFactor": 1,
+            "A": "+",
+            "B": "+",
+            "C": "+",
+            "D": "+"
+          },
+          "SED": {
+            "gain": 0,
+            "offset": 0,
+            "scintillatorVoltage": 0,
+            "mixFactor": 0
+          },
+          "STEM": {
+            "mixFactor": 0,
+            "segmentSelection": {
+              "bf1": true,
+              "bf2": true,
+              "bf3": true,
+              "bf4": true,
+              "df1": true,
+              "ha1": true,
+              "ha2": true,
+              "ha3": true,
+              "ha4": true,
+              "ha5": true,
+              "ha6": true
+            }
+          }
+        },
+        "beamShift": {
+          "x": 0,
+          "y": 0
+        },
+        "sourceTilt": {
+          "x": -0.01264028954658525,
+          "y": 0.04815130014055247
+        },
+        "stigmator": {
+          "x": -0.002342132828530364,
+          "y": -0.00855233682146137
+        },
+        "sourceTime": {
+          "unit": "h",
+          "value": 7634
+        },
+        "sourceId": 25,
+        "highVoltage": {
+          "unit": "kV",
+          "value": -5
+        },
+        "emissionCurrent": {
+          "unit": "uA",
+          "value": 135.9021671305527
+        },
+        "emissionCurrentPresetName": null,
+        "filamentPower": {
+          "unit": "W",
+          "value": 0
+        },
+        "scanCenter": {
+          "x": 0,
+          "y": 0
+        },
+        "scanScale": 1
+      }
+    },
+    "workingDistance": {
+      "unit": "mm",
+      "value": 3.334999999999997
+    },
+    "instrument": {
+      "type": "Phenom",
+      "softwareVersion": "6.6.0.rel.d7a92301af.27465",
+      "uniqueID": "MVE084613-20046-F",
+      "edition": "Phenom Pharos G2",
+      "sampleHolder": {
+        "type": 1,
+        "id": "0147e8ac1a0000b2"
+      }
+    },
+    "applicationID": null,
+    "PPI": {
+      "version": "2.1.0_release"
+    }
+  }
+}

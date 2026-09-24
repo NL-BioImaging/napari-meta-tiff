@@ -1,0 +1,116 @@
+{
+  "Software": "Fibics ATLAS Export",
+  "FibicsXML": {
+    "Application": {
+      "Version": "ZEISS Atlas 5 Client v5.3.2",
+      "Date": "1899-12-30T00:00:00.000+01:00",
+      "SupportsTransparency": true,
+      "TransparentPixelValue": 0
+    },
+    "Image": {
+      "Width": 50595,
+      "Height": 49533,
+      "BoundingBox.Left": 0,
+      "BoundingBox.Right": 50595,
+      "BoundingBox.Top": 0,
+      "BoundingBox.Bottom": 49533,
+      "Contrast": 0,
+      "Brightness": 0,
+      "InvertedSignal": false
+    },
+    "Scan": {
+      "LineAvg": 1,
+      "FOV_X": {
+        "units": "um",
+        "value": 129.044885430288
+      },
+      "FOV_Y": {
+        "units": "um",
+        "value": 126.336205356625
+      },
+      "ScanRot": {
+        "units": "deg",
+        "value": 0
+      },
+      "Ux": 0.00255054620872196,
+      "Uy": 0,
+      "Vx": 0,
+      "Vy": -0.00255054620872196,
+      "Focus": 0,
+      "StigX": 0,
+      "StigY": 0,
+      "AppliedScaleCorrection": 1,
+      "ShiftX": 0,
+      "ShiftY": 0
+    },
+    "StageBias": {
+      "BiasType": null,
+      "Mode": null,
+      "Volts": 0
+    },
+    "Stage": {
+      "X": {
+        "units": "um",
+        "value": 0
+      },
+      "Y": {
+        "units": "um",
+        "value": 0
+      },
+      "Z": {
+        "units": "um",
+        "value": 0
+      },
+      "Tilt": {
+        "units": "deg",
+        "value": 0
+      },
+      "Rot": {
+        "units": "deg",
+        "value": 0
+      },
+      "M": {
+        "units": "mm",
+        "value": 0
+      }
+    },
+    "RawStage": {
+      "X": {
+        "units": "um",
+        "value": 0
+      },
+      "Y": {
+        "units": "um",
+        "value": 0
+      },
+      "Z": {
+        "units": "um",
+        "value": 0
+      },
+      "Tilt": {
+        "units": "deg",
+        "value": 0
+      },
+      "Rot": {
+        "units": "deg",
+        "value": 0
+      },
+      "M": {
+        "units": "mm",
+        "value": 0
+      }
+    },
+    "ImageCorrections": {
+      "Invert": false,
+      "Brightness": 0,
+      "Contrast": 1,
+      "XBrightSlope": 0,
+      "YBrightSlope": 0,
+      "RBrightSlope": 0
+    },
+    "Microscope": {
+      "SystemVacuum": 0
+    },
+    "version": 1.2
+  }
+}

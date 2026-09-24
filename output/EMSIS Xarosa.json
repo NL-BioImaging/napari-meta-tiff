@@ -1,0 +1,25 @@
+{
+  "Make": "EMSIS",
+  "Model": "Xarosa",
+  "ExposureTime": [
+    41,
+    5000
+  ],
+  "ExifVersion": "0210",
+  "DateTimeDigitized": "2025:05:28 10:54:29",
+  "MeteringMode": 1,
+  "FlashpixVersion": "0100",
+  "ColorSpace": 1,
+  "PixelXDimension": 5120,
+  "PixelYDimension": 3840,
+  "ExposureMode": 1,
+  "OlympusSIS": {
+    "name": "",
+    "datetime": "2025-05-28T10:54:00",
+    "pixelsizex": 1.652845302290227e-09,
+    "pixelsizey": 1.652845302290227e-09,
+    "magnification": 6000.0,
+    "cameraname": "",
+    "picturetype": ""
+  }
+}
