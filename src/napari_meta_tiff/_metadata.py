@@ -56,6 +56,8 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
         return unwrap_metadata(xml2dict(tif.ome_metadata))
 
     extra_metadata = {}
+    # setdefault lets the first page win, as later pages tend to be
+    # thumbnails or reduced resolutions; they only fill in missing fields
     for page in tif.pages:
         for tag in page.tags.values():
             if tag.code >= PRIVATE_TAG_CODE:
@@ -66,8 +68,8 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
                     for name, field in value.items():
                         extra_metadata.setdefault(name, field)
                 else:
-                    # key by tag name, so several vendor tags in one file
-                    # cannot overwrite each other
+                    # key by tag name, so that different vendor tags in one
+                    # file are kept side by side
                     extra_metadata.setdefault(tag.name, value)
             elif tag.name in IDENTITY_TAG_NAMES:
                 extra_metadata.setdefault(tag.name, tag.value)
