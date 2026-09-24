@@ -45,3 +45,34 @@ Reading a single pixel of a tiled image costs one tile. A striped image
 cannot be read in pieces smaller than a full width band, so the same access
 is as large as the strip; that follows from the file layout rather than from
 this plugin.
+
+## extract_metadata.py
+
+Writes the vendor metadata the reader finds in each tiff to a json file of
+its own, so the metadata of a whole slide folder can be read, diffed and
+searched without opening napari or the files themselves.
+
+```
+python -m testing.extract_metadata "C:/Project/slides/tiff/*.tif*"
+```
+
+Patterns are expanded by the script, as the shell on Windows does not do
+it, so quote them. A directory can be passed instead, which picks up the
+tiffs in it. The json goes to `output/` unless another folder is given:
+
+```
+python -m testing.extract_metadata C:/Project/slides/tiff -o output
+```
+
+Each file is written under the name of its tiff, numbered when two tiffs
+in different folders share a name. A file that cannot be read is reported
+and skipped rather than stopping the run, and the script exits with 1 if
+any file failed.
+
+`test_extract_metadata.py` runs the same extraction over
+`C:/Project/slides/tiff/*.tif*` into `output/` at the root of the
+repository, and checks that every slide was written:
+
+```
+python -m testing.test_extract_metadata
+```
