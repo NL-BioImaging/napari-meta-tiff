@@ -77,7 +77,7 @@ def to_json(value):
     return str(value)
 
 
-def extract(path):
+def extract_tiff_metadata(path):
     """Return the metadata the reader finds in a tiff, as json."""
     with TiffFile(path) as tif:
         return to_json(get_extra_metadata(tif))
@@ -135,7 +135,7 @@ def main(patterns, output_dir=OUTPUT_DIR):
     for path in paths:
         destination = output_path(path, output_dir, taken)
         try:
-            metadata = extract(path)
+            metadata = extract_tiff_metadata(path)
         except Exception as exception:
             # one unreadable file should not stop the rest of a folder
             logger.warning('could not read %s', path, exc_info=True)
