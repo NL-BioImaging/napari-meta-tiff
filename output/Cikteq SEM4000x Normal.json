@@ -1,0 +1,105 @@
+{
+  "FEI_HELIOS": {
+    "Beam": {
+      "AstigX": -0.01,
+      "AstigY": 0.0,
+      "BeamDownX": 0,
+      "BeamDownY": 0,
+      "BeamMode": "1-20um",
+      "BeamType": 1,
+      "BeamUpX": 0,
+      "BeamUpY": 0,
+      "Condenser": 1374,
+      "Condenser2": 1103,
+      "ElectricMoveX": 0.01,
+      "ElectricMoveY": -0.2,
+      "ElectricRotate": 0.0,
+      "Focus": 51662.0,
+      "HFW": "71.17µm",
+      "ImagingMode": 0,
+      "RealAbsCurrent": 11.36,
+      "ShiftX": 0.0,
+      "ShiftY": 0.0,
+      "TiltX": 0.0,
+      "TiltY": 0.0,
+      "VisibleMultiple": 1800,
+      "WD": 3.88
+    },
+    "Detector": {
+      "Brightness": 50.0,
+      "Channel": 1,
+      "ConsumerBrightness": 50.0,
+      "ConsumerContrast": 50.0,
+      "Contrast": 0.0,
+      "DetectorName": "ETD-SE",
+      "Gain": 100,
+      "PMT": 0.37
+    },
+    "HV": {
+      "BV": 6000.24,
+      "Bia": 0.0,
+      "CV": 200.0,
+      "ExtCurrent": 141.86,
+      "ExtVoltage": 3600.62,
+      "FV": 0.0,
+      "FcCurrent": 2.28,
+      "FcVoltage": 1.49,
+      "HighEmissionMode": false,
+      "HvCurrent": 2.28,
+      "HvMode": 0,
+      "HvVoltage": 3000.0,
+      "Mid10kvVoltage": 0.0,
+      "SV": 10001.24,
+      "SchCurrent": 3.51,
+      "SchVoltage": 300.68
+    },
+    "Other": {
+      "BottomInfoVacuum": "1.1e-07Pa"
+    },
+    "Scan": {
+      "Drift": true,
+      "FramAdd": 1,
+      "FrameTime": "2min29s",
+      "Interlaced": "Disable",
+      "LineAdd": 1,
+      "PointTime": 5.0,
+      "ResolutionX": 6144,
+      "ResolutionY": 4096
+    },
+    "Stage": {
+      "NavCoordinate": 1,
+      "StagePosR": 11.7,
+      "StagePosT": 0.0,
+      "StagePosX": 12.3745,
+      "StagePosY": 9.0143,
+      "StagePosZ": 58.0,
+      "StageType": "TMCM-GYLZ-4000X-FIVE-110x110x69"
+    },
+    "System": {
+      "ProductName": "SEM4000X",
+      "SoftwareVersion": "3.2.3.300",
+      "Version": 2.6
+    },
+    "TiltCorrect": {
+      "CorrectAngle": 0.0,
+      "IonWorkTilt": 54.0,
+      "IsTiltCorrent": false,
+      "PreTiltAngle": 0.0,
+      "TiltCompensateMode": 0
+    },
+    "User": {
+      "BottomInfoShowEnable": 2038,
+      "DateTimeFmt": "yyyy/MM/dd HH:mm:ss",
+      "MagType": 1,
+      "RulerText": "SEM4000X",
+      "TimeStamp": 1784645361,
+      "UserName": "\u0001",
+      "VacuumType": 0
+    },
+    "Vacuum": {
+      "BufferVacuum": 123.0,
+      "GunVacuum": 1.14e-07,
+      "SampleVacuum": 0.000203
+    }
+  }
+}
