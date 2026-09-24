@@ -35,6 +35,17 @@ def test_parse_quantity_forms():
     assert parse_quantity(1.5, 'furlong') is None
 
 
+def test_garbled_micro_sign_is_repaired(tmp_path):
+    """A micro sign written in GBK reads as one, not as '¦Ì'."""
+    path = str(tmp_path / 'garbled.tif')
+    # Helios writes the Greek mu in GBK, which tifffile reads as latin-1
+    write_vendor_tiff(path, '<Vendor><Beam><HFW>21.12μm</HFW></Beam>'
+                            '</Vendor>'.encode('gbk'))
+    with TiffFile(path) as tif:
+        metadata = get_extra_metadata(tif)
+    assert metadata['65000']['Beam']['HFW'] == '21.12µm'
+
+
 def test_pixel_size_from_vendor_fields(tmp_path):
     """A vendor stating the pixel size is read, metres where unstated."""
     path = str(tmp_path / 'vendor.tif')
@@ -190,6 +201,7 @@ if __name__ == '__main__':
         tmp_path = Path(tmpdir)
 
         test_parse_quantity_forms()
+        test_garbled_micro_sign_is_repaired(tmp_path)
         test_pixel_size_from_vendor_fields(tmp_path)
         test_pixel_size_from_field_of_view(tmp_path)
         test_pixel_size_ignores_pixel_counts(tmp_path)

@@ -53,7 +53,7 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
     nested behind the name of the tag that points at them.
     """
     if tif.is_ome and tif.ome_metadata:
-        return unwrap_metadata(xml2dict(tif.ome_metadata))
+        return repair_text(unwrap_metadata(xml2dict(tif.ome_metadata)))
 
     extra_metadata = {}
     # setdefault lets the first page win, as later pages tend to be
@@ -73,7 +73,7 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
                     extra_metadata.setdefault(tag.name, value)
             elif tag.name in IDENTITY_TAG_NAMES:
                 extra_metadata.setdefault(tag.name, tag.value)
-    return extra_metadata
+    return repair_text(extra_metadata)
 
 
 def unwrap_metadata(value: Any) -> Any:
@@ -139,6 +139,24 @@ def is_document_detail(key: Any, value: Any) -> bool:
             or (isinstance(value, str) and '.xsd' in value.lower()))
 
 
+def repair_text(value: Any) -> Any:
+    """Recursively put back the characters a broken encoding garbled.
+
+    Only the sequences known to be garbled are replaced, rather than
+    guessing at the encoding of every string, which would mangle text
+    that was read correctly.
+    """
+    if isinstance(value, str):
+        for garbled, meant in MOJIBAKE.items():
+            value = value.replace(garbled, meant)
+        return value
+    if isinstance(value, dict):
+        return {key: repair_text(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [repair_text(item) for item in value]
+    return value
+
+
 # how many micrometres a unit is worth, keyed by the spellings vendors
 # use. Angstrom is included because electron microscopes report in it.
 UM_CONVERSIONS = {
@@ -169,9 +187,12 @@ UNIT_KEYS = ('unit', 'units')
 QUANTITY_PATTERN = re.compile(
     r'^\s*([-+]?[\d.]+(?:[eE][-+]?\d+)?)\s*([^\d\s]*)\s*$')
 
-# Helios writes the micro sign through a broken encoding, which leaves
-# this pair of characters where a single micro sign belongs
-MICRO_MOJIBAKE = '¦Ì'
+# text a vendor wrote in one encoding and tifffile read back as latin-1,
+# keyed by how it reads, with the character that was meant. Helios writes
+# the micro sign as the Greek mu in GBK, whose two bytes read as '¦Ì'.
+MOJIBAKE = {
+    '¦Ì': 'µ',
+}
 
 # names a pixel size goes by, once the axis is taken off the end
 PIXEL_SIZE_NAMES = ('pixelsize', 'pixelspacing', 'physicalsize')
@@ -249,7 +270,7 @@ def parse_quantity(value: Any, unit: Any = None) -> Optional[float]:
                                       find_unit(keyed) or unit)
         return None
     if isinstance(value, str):
-        match = QUANTITY_PATTERN.match(value.replace(MICRO_MOJIBAKE, 'µ'))
+        match = QUANTITY_PATTERN.match(repair_text(value))
         if match is None:
             return None
         number, written_unit = match.groups()
