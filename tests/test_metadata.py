@@ -43,7 +43,7 @@ def test_garbled_micro_sign_is_repaired(tmp_path):
                             '</Vendor>'.encode('gbk'))
     with TiffFile(path) as tif:
         metadata = get_extra_metadata(tif)
-    assert metadata['65000']['Beam']['HFW'] == '21.12µm'
+    assert metadata['65000']['Vendor']['Beam']['HFW'] == '21.12µm'
 
 
 def test_pixel_size_from_vendor_fields(tmp_path):

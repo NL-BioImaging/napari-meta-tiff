@@ -53,7 +53,7 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
     nested behind the name of the tag that points at them.
     """
     if tif.is_ome and tif.ome_metadata:
-        return repair_text(unwrap_metadata(xml2dict(tif.ome_metadata)))
+        return repair_text(decode_metadata(tif.ome_metadata))
 
     extra_metadata = {}
     # setdefault lets the first page win, as later pages tend to be
@@ -61,7 +61,7 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
     for page in tif.pages:
         for tag in page.tags.values():
             if tag.code >= PRIVATE_TAG_CODE:
-                value = unwrap_metadata(tag.value)
+                value = decode_metadata(tag.value)
                 if value in (None, '', {}):
                     continue
                 if tag.name == EXIF_TAG_NAME and isinstance(value, dict):
@@ -76,12 +76,12 @@ def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
     return repair_text(extra_metadata)
 
 
-def unwrap_metadata(value: Any) -> Any:
-    """Reduce a metadata value to the fields it actually holds.
+def decode_metadata(value: Any) -> Any:
+    """Decode a metadata value into the structure it holds.
 
-    Vendors store their metadata as an xml document, as a nested mapping,
-    or as a mapping behind a single key naming their own schema, so
-    reduce all of those to the fields themselves.
+    Vendors store their metadata as an xml document or as a nested
+    mapping, so parse the xml into a mapping, keeping its root element,
+    such as OME, FeiImage or Fibics, which names the vendor's schema.
     """
     if isinstance(value, Enum):
         return value.name
@@ -90,17 +90,7 @@ def unwrap_metadata(value: Any) -> Any:
         if parsed is None:
             return value
         value = parsed
-    value = drop_document_details(value)
-    if not isinstance(value, dict):
-        return value
-
-    # a lone key naming the vendor's schema, such as OME, FeiImage or
-    # Fibics, only nests the fields one level deeper
-    if len(value) == 1:
-        (item,) = value.values()
-        if isinstance(item, dict):
-            return item
-    return value
+    return drop_document_details(value)
 
 
 def parse_xml(value: str) -> Optional[Dict]:
