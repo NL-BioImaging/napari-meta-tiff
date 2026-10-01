@@ -1,4 +1,18 @@
 {
+  "ImageWidth": 1920,
+  "ImageLength": 1200,
+  "BitsPerSample": 8,
+  "PhotometricInterpretation": "MINISBLACK",
+  "SamplesPerPixel": 1,
+  "XResolution": [
+    96000,
+    1000
+  ],
+  "YResolution": [
+    96000,
+    1000
+  ],
+  "ResolutionUnit": "INCH",
   "FEI_TITAN": {
     "FeiImage": {
       "databarHeight": 0,

@@ -1,4 +1,10 @@
 {
+  "ImageWidth": 8448,
+  "ImageLength": 5632,
+  "BitsPerSample": 8,
+  "PhotometricInterpretation": "MINISBLACK",
+  "SamplesPerPixel": 1,
+  "ResolutionUnit": "INCH",
   "FEI_HELIOS": {
     "Beam": {
       "AstigX": 0.01,

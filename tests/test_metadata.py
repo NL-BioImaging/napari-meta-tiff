@@ -6,14 +6,14 @@ Run this module to execute the tests by hand:
 """
 
 import pytest
-from tifffile import TiffFile
+from tifffile import TiffFile, imwrite
 
 from napari_meta_tiff._metadata import (get_extra_metadata,
                                         get_pixel_size_um, get_position_um,
                                         parse_quantity, resolution_pixel_size)
 
-from tests._dummy_tiff import (write_ome_tiff, write_resolution_tiff,
-                               write_vendor_tiff)
+from tests._dummy_tiff import (dummy_image, write_ome_tiff,
+                               write_resolution_tiff, write_vendor_tiff)
 
 
 # what one pixel of the image below measures, in micrometres
@@ -78,6 +78,52 @@ def test_pixel_size_ignores_pixel_counts(tmp_path):
                             '</Vendor>')
     with TiffFile(path) as tif:
         assert get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE) == {}
+
+
+def keys_anywhere(value):
+    """Yield every key in a nested metadata structure."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from keys_anywhere(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from keys_anywhere(item)
+
+
+def test_baseline_tags_pass_through_but_the_pixel_layout(tmp_path):
+    """Every baseline tag describing the image is metadata, its pixel
+    layout is not: the strips, tiles and compression only decode it."""
+    path = str(tmp_path / 'baseline.tif')
+    imwrite(path, dummy_image(32), tile=(16, 16), compression='zlib',
+            resolution=(4, 4), resolutionunit='CENTIMETER',
+            datetime='2023:11:07 12:24:09', software='Acme 1.0',
+            description='a plain description', metadata=None)
+    with TiffFile(path) as tif:
+        metadata = get_extra_metadata(tif)
+
+    assert metadata['ImageWidth'] == metadata['ImageLength'] == 32
+    assert metadata['XResolution'] == (4, 1)
+    assert metadata['ResolutionUnit'] == 'CENTIMETER'
+    assert metadata['DateTime'] == '2023:11:07 12:24:09'
+    assert metadata['Software'] == 'Acme 1.0'
+    assert metadata['ImageDescription'] == 'a plain description'
+    layout = {'TileOffsets', 'TileByteCounts', 'TileWidth', 'TileLength',
+              'Compression', 'Predictor', 'PlanarConfiguration'}
+    assert not layout & set(metadata)
+
+
+def test_ome_metadata_without_its_pixel_layout(tmp_path):
+    """An OME document is the metadata, but where its pixels are written."""
+    path = str(tmp_path / 'layout.ome.tif')
+    write_ome_tiff(path, x=(0.325, 'µm'), y=(0.325, 'µm'))
+    with TiffFile(path) as tif:
+        metadata = get_extra_metadata(tif)
+
+    pixels = metadata['OME']['Image']['Pixels']
+    assert pixels['PhysicalSizeX'] == 0.325
+    assert not {'TiffData', 'BinData', 'BigEndian',
+                'Interleaved'} & set(keys_anywhere(metadata))
 
 
 def test_pixel_size_from_ome(tmp_path):

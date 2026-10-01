@@ -27,9 +27,24 @@ PRIVATE_TAG_CODE = 32768
 # fields are collected beside the other metadata instead of below it
 EXIF_TAG_NAME = 'ExifTag'
 
-# baseline tags naming the instrument that produced the image, which
-# vendors that do not use a private tag at all still fill in
-IDENTITY_TAG_NAMES = ('Make', 'Model', 'Software', 'HostComputer')
+# baseline tags that only lay out or encode the pixel data, meaningless
+# beside pixels already read; every other baseline tag, such as the
+# instrument's Make and Model, the resolution or the date, describes the
+# image and is metadata like the rest
+LAYOUT_TAG_NAMES = {
+    'NewSubfileType', 'SubfileType', 'Compression', 'Predictor',
+    'PlanarConfiguration', 'FillOrder', 'StripOffsets', 'StripByteCounts',
+    'RowsPerStrip', 'TileWidth', 'TileLength', 'TileDepth', 'TileOffsets',
+    'TileByteCounts', 'SubIFDs', 'JPEGTables', 'JPEGProc',
+    'JPEGInterchangeFormat', 'JPEGInterchangeFormatLength',
+    'JPEGRestartInterval', 'JPEGLosslessPredictors', 'JPEGPointTransforms',
+    'JPEGQTables', 'JPEGDCTables', 'JPEGACTables', 'YCbCrCoefficients',
+    'YCbCrSubSampling', 'YCbCrPositioning', 'ReferenceBlackWhite',
+    'ExtraSamples', 'ColorMap'}
+
+# the elements and attributes of an OME document that say where and how
+# its pixel data is written, rather than anything about the image
+OME_LAYOUT_NAMES = ('TiffData', 'BinData', 'BigEndian', 'Interleaved')
 
 # ElementTree expands a namespaced xml attribute into a {namespace}name
 # key. Attributes in this namespace, such as xsi:type and
@@ -39,41 +54,69 @@ XSI_NAMESPACE = '{http://www.w3.org/2001/XMLSchema-instance}'
 
 
 def get_extra_metadata(tif: TiffFile) -> Dict[str, Any]:
-    """Return the vendor metadata in a TIFF file.
+    """Return all the metadata in a TIFF file, but what lays out its pixels.
 
     Rather than reading the tags of particular vendors, every private tag
     is collected and normalised the same way, so that vendors which are
     not known here are picked up as well. TIFF reserves tag codes at or
     above 32768 for a vendor's own use, which is where instrument
-    metadata ends up, whereas the baseline tags below that hold the
-    bookkeeping needed to decode the pixels.
+    metadata ends up. The baseline tags below that are collected beside
+    them, but those that only lay out or encode the pixel data, such as
+    the strips, tiles and JPEG tables.
 
     The Exif IFD is the exception: its fields are standard rather than a
     vendor's own, so they are merged in beside the rest instead of being
     nested behind the name of the tag that points at them.
+
+    An OME-TIFF's metadata is its OME document, but where and how its
+    pixel data is written.
     """
     if tif.is_ome and tif.ome_metadata:
-        return repair_text(decode_metadata(tif.ome_metadata))
+        return repair_text(drop_names(decode_metadata(tif.ome_metadata),
+                                      OME_LAYOUT_NAMES))
 
     extra_metadata = {}
     # setdefault lets the first page win, as later pages tend to be
     # thumbnails or reduced resolutions; they only fill in missing fields
     for page in tif.pages:
         for tag in page.tags.values():
-            if tag.code >= PRIVATE_TAG_CODE:
-                value = decode_metadata(tag.value)
-                if value in (None, '', {}):
-                    continue
-                if tag.name == EXIF_TAG_NAME and isinstance(value, dict):
-                    for name, field in value.items():
-                        extra_metadata.setdefault(name, field)
-                else:
-                    # key by tag name, so that different vendor tags in one
-                    # file are kept side by side
-                    extra_metadata.setdefault(tag.name, value)
-            elif tag.name in IDENTITY_TAG_NAMES:
-                extra_metadata.setdefault(tag.name, tag.value)
+            is_private = tag.code >= PRIVATE_TAG_CODE
+            value = (decode_metadata(tag.value) if is_private
+                     else baseline_value(tag.value))
+            if (is_private and tag.name == EXIF_TAG_NAME
+                    and isinstance(value, dict)):
+                for name, field in value.items():
+                    extra_metadata.setdefault(name, field)
+            elif is_private and value not in (None, '', {}):
+                # key by tag name, so that different vendor tags in one
+                # file are kept side by side
+                extra_metadata.setdefault(tag.name, value)
+            elif not is_private and tag.name not in LAYOUT_TAG_NAMES:
+                extra_metadata.setdefault(tag.name, value)
     return repair_text(extra_metadata)
+
+
+def baseline_value(value: Any) -> Any:
+    """Return a baseline tag's value as plain data.
+
+    An enumeration, such as the photometric interpretation, becomes its
+    name, and bytes, such as an XMP packet, the text they hold.
+    """
+    if isinstance(value, Enum):
+        return value.name
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    return value
+
+
+def drop_names(value: Any, names: Tuple[str, ...]) -> Any:
+    """Recursively drop the entries with any of `names` as their key."""
+    if isinstance(value, dict):
+        return {key: drop_names(item, names) for key, item in value.items()
+                if key not in names}
+    if isinstance(value, list):
+        return [drop_names(item, names) for item in value]
+    return value
 
 
 def decode_metadata(value: Any) -> Any:

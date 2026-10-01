@@ -40,17 +40,9 @@
             "SamplesPerPixel": 1
           }
         ],
-        "TiffData": {
-          "FirstC": 0,
-          "FirstT": 0,
-          "FirstZ": 0,
-          "IFD": 0,
-          "PlaneCount": 88
-        },
         "ID": "Pixels:0",
         "DimensionOrder": "XYZTC",
         "Type": "uint16",
-        "BigEndian": false,
         "SizeX": 167,
         "SizeY": 172,
         "SizeZ": 44,

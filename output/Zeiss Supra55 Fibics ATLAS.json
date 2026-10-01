@@ -1,5 +1,13 @@
 {
+  "ImageWidth": 50595,
+  "ImageLength": 49533,
+  "BitsPerSample": 8,
+  "PhotometricInterpretation": "MINISBLACK",
+  "Orientation": "TOPLEFT",
+  "SamplesPerPixel": 1,
+  "ResolutionUnit": "NONE",
   "Software": "Fibics ATLAS Export",
+  "SampleFormat": "UINT",
   "FibicsXML": {
     "Fibics": {
       "Application": {
