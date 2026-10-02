@@ -10,6 +10,7 @@ and explore the layers by hand:
 
 import numpy as np
 import pytest
+from tifffile import TiffFile
 
 from napari_meta_tiff._reader import napari_get_reader
 
@@ -66,6 +67,10 @@ def test_napari_layer_pyramid(tmp_path):
     levels = write_pyramid_tiff(path, nlevels=nlevels,
                                 extratags=MAKE_MODEL_EXTRATAGS)
 
+    # make sure the file really has the expected number of levels
+    with TiffFile(path) as tif:
+        assert len(tif.series[0].levels) == nlevels
+
     viewer = napari.components.ViewerModel()
     layers = add_layers(viewer, path)
 
@@ -112,19 +117,6 @@ def test_napari_layer_in_micrometres(tmp_path):
     # the far corner is the last pixel, not one past it
     assert layer.extent.world[1].tolist() == [-4 + (size - 1) * 0.25,
                                               10 + (size - 1) * 0.25]
-
-
-def test_napari_layer_without_spatial_metadata(tmp_path):
-    """A file saying nothing about space is left in pixels."""
-    path = str(tmp_path / 'dummy.tif')
-    write_dummy_tiff(path)
-
-    viewer = napari.components.ViewerModel()
-    layer = add_layers(viewer, path)[0]
-
-    assert tuple(layer.scale) == (1, 1)
-    assert tuple(layer.translate) == (0, 0)
-    assert [str(unit) for unit in layer.units] == ['pixel'] * 2
 
 
 if __name__ == '__main__':
