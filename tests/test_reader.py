@@ -65,7 +65,7 @@ def test_reader_spatial_kwargs(tmp_path):
     write_vendor_tiff(path, '<Vendor><pixelsizex>2.5e-9</pixelsizex>'
                             '<pixelsizey>2.5e-9</pixelsizey>'
                             '<Stage><X><value>1.5</value><units>mm</units>'
-                            '</X></Stage></Vendor>')
+                            '</X><R>-30</R></Stage></Vendor>')
 
     _, add_kwargs, _ = napari_get_reader(path)(path)[0]
     assert add_kwargs['axis_labels'] == ('Y', 'X')
@@ -73,6 +73,7 @@ def test_reader_spatial_kwargs(tmp_path):
     assert add_kwargs['units'] == ('um', 'um')
     # only x was stated, and the axes are ordered as the data is
     assert add_kwargs['translate'] == (0.0, 1500.0)
+    assert add_kwargs['rotate'] == -30.0
 
 
 def test_reader_without_spatial_metadata(tmp_path):
@@ -83,6 +84,7 @@ def test_reader_without_spatial_metadata(tmp_path):
     _, add_kwargs, _ = napari_get_reader(path)(path)[0]
     assert 'scale' not in add_kwargs
     assert 'translate' not in add_kwargs
+    assert 'rotate' not in add_kwargs
     assert 'units' not in add_kwargs
 
 

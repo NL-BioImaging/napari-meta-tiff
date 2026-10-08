@@ -11,7 +11,8 @@ from tifffile import TiffFile
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from napari_meta_tiff._metadata import (get_extra_metadata,
-                                        get_pixel_size_um, get_position_um)
+                                        get_pixel_size_um, get_position_um,
+                                        get_rotation_deg)
 
 
 logger = logging.getLogger(__name__)
@@ -146,17 +147,18 @@ def tifffile_reader(tif: TiffFile) -> List[LayerData]:
 def spatial_kwargs(tif: TiffFile, series: Any, metadata: Dict) -> Dict:
     """Return what the metadata says about where the image sits.
 
-    The pixel size and the stage position are measurements of the scene
-    rather than of the array, so they are handed to napari as the scale
-    and the translate of the layer, which puts the axes in micrometres
-    and two images of one sample where they belong relative to each
-    other. A multiscale layer is scaled by its highest level, from which
-    napari works out the rest.
+    The pixel size, the stage position and the stage rotation are
+    measurements of the scene rather than of the array, so they are handed
+    to napari as the scale, the translate and the rotate of the layer,
+    which puts the axes in micrometres and two images of one sample where
+    they belong relative to each other. A multiscale layer is scaled by
+    its highest level, from which napari works out the rest.
     """
     axes = [axis.lower() for axis in series.axes]
     shape = dict(zip(axes, series.shape))
     pixel_size = get_pixel_size_um(tif, metadata, shape)
     position = get_position_um(metadata)
+    rotation = get_rotation_deg(metadata)
 
     kwargs = {"axis_labels": tuple(series.axes)}
     if pixel_size:
@@ -167,6 +169,8 @@ def spatial_kwargs(tif: TiffFile, series: Any, metadata: Dict) -> Dict:
                                 for axis in axes)
     if position:
         kwargs["translate"] = tuple(position.get(axis, 0.0) for axis in axes)
+    if rotation:
+        kwargs["rotate"] = rotation
     return kwargs
 
 
