@@ -147,7 +147,7 @@ def tifffile_reader(tif: TiffFile) -> List[LayerData]:
 def spatial_kwargs(tif: TiffFile, series: Any, metadata: Dict) -> Dict:
     """Return what the metadata says about where the image sits.
 
-    The pixel size, the stage position and the stage rotation are
+    The pixel size, the stage position and the rotation of the image are
     measurements of the scene rather than of the array, so they are handed
     to napari as the scale, the translate and the rotate of the layer,
     which puts the axes in micrometres and two images of one sample where
