@@ -254,71 +254,47 @@ def test_position_ignores_other_fields(tmp_path):
         assert get_position_um(get_extra_metadata(tif)) == {}
 
 
-def test_rotation_from_scan(tmp_path):
-    """The image is turned against the stage by the scan rotation, the
-    other way, and the stage rotation plays no part in it."""
+# the image is turned by the scan rotation, the other way, apart from the
+# stage rotation, which turns the sample: (metadata, image, stage rotation)
+ROTATION_CASES = {
     # Ciqtek, whose row of tiles at ElectricRotate -135 lines up at 135
-    path = str(tmp_path / 'ciqtek.tif')
-    write_vendor_tiff(path, '<Vendor><Beam><ElectricRotate>-135'
-                            '</ElectricRotate></Beam><Stage><StagePosR>-30'
-                            '</StagePosR></Stage></Vendor>')
-    with TiffFile(path) as tif:
-        assert get_rotation_deg(get_extra_metadata(tif)) == 135.0
-
-    # Phenom, as the rotation of a scan structure, and Fibics, with a unit
-    assert get_rotation_deg({'acquisition': {'scan': {'rotation': 90}}}) == -90.0
-    assert get_rotation_deg(
-        {'Fibics': {'Scan': {'ScanRot': {'units': 'deg', 'value': 10}}}}) == -10.0
-
-    # FEI in radians, as all its angles
-    metadata = {'FEI_HELIOS': {'Beam': {'ScanRotation': 0.5},
-                               'Stage': {'StageR': 1.0}}}
-    assert get_rotation_deg(metadata) == pytest.approx(-28.6479, abs=1e-4)
-
-    # no rotation is not a turn of -0.0, and no scan rotation is no rotation
-    assert str(get_rotation_deg({'Beam': {'ElectricRotate': 0.0}})) == '0.0'
-    assert get_rotation_deg({'Stage': {'StagePosR': -30.0}}) is None
+    'ciqtek': ({'Beam': {'ElectricRotate': -135.0},
+                'Stage': {'StagePosR': -30.0, 'StagePosX': 0.002}}, 135.0, -30.0),
+    # Ciqtek writes to the FEI tag, but in degrees, under its own names
+    'ciqtek in the fei tag': ({'FEI_HELIOS': {'Beam': {'ElectricRotate': 0.0},
+                                              'Stage': {'StagePosR': 11.7}}},
+                              0.0, 11.7),
+    # FEI writes every angle in radians without saying so
+    'fei': ({'FEI_HELIOS': {'Beam': {'ScanRotation': 0.5},
+                            'Stage': {'StageR': 1.07874}}}, -28.6479, 61.8072),
+    'phenom': ({'acquisition': {'scan': {'rotation': 90}}}, -90.0, None),
+    'fibics': ({'Fibics': {'Scan': {'ScanRot': {'units': 'deg', 'value': 10}}}},
+               -10.0, None),
+    'stated radians': ({'Stage': {'R': {'value': 0.5, 'units': 'rad'}}},
+                       None, 28.6479),
+    'neither': ({'Stage': {'StagePosX': 0.002}}, None, None),
+}
 
 
-def test_stage_rotation(tmp_path):
-    """The stage rotation is read in degrees, apart from the position.
+@pytest.mark.parametrize('metadata, rotation, stage_rotation',
+                         ROTATION_CASES.values(), ids=ROTATION_CASES.keys())
+def test_rotations(metadata, rotation, stage_rotation):
+    """The image and the stage rotation are read apart, in degrees."""
+    image_rotation = get_rotation_deg(metadata)
+    if rotation is None:
+        assert image_rotation is None
+    else:
+        assert image_rotation == pytest.approx(rotation, abs=1e-4)
+        # no rotation is not a turn of -0.0
+        assert str(image_rotation) != '-0.0'
+    if stage_rotation is None:
+        assert get_stage_rotation_deg(metadata) is None
+    else:
+        assert get_stage_rotation_deg(metadata) == pytest.approx(stage_rotation,
+                                                                 abs=1e-4)
+    # neither turns up as a position
+    assert 'r' not in get_position_um(metadata)
 
-    Ciqtek writes StagePosR in degrees beside StagePosX; a stated radian
-    is converted, and the rotation of the scan is not the stage's.
-    """
-    path = str(tmp_path / 'rotation.tif')
-    write_vendor_tiff(path, '<Vendor><ElectricRotate>-135</ElectricRotate>'
-                            '<Scan><rotation>90</rotation></Scan>'
-                            '<Stage><StagePosR>11.7</StagePosR>'
-                            '<StagePosX>0.002</StagePosX></Stage></Vendor>')
-    with TiffFile(path) as tif:
-        metadata = get_extra_metadata(tif)
-    assert get_stage_rotation_deg(metadata) == 11.7
-    assert get_position_um(metadata) == {'x': 2000.0}
-
-    path = str(tmp_path / 'radians.tif')
-    write_vendor_tiff(path, '<Vendor><Stage><R><value>0.5</value>'
-                            '<units>rad</units></R></Stage></Vendor>')
-    with TiffFile(path) as tif:
-        metadata = get_extra_metadata(tif)
-    assert get_stage_rotation_deg(metadata) == pytest.approx(28.6479,
-                                                             abs=1e-4)
-
-    # an FEI header writes radians with no unit, as in a Helios file,
-    # while Ciqtek writes degrees to the same tag under its own name
-    metadata = {'FEI_HELIOS': {'Stage': {'StageX': 0.0699197,
-                                         'StageR': 1.07874}}}
-    assert get_stage_rotation_deg(metadata) == pytest.approx(61.8072,
-                                                             abs=1e-4)
-    metadata = {'FEI_HELIOS': {'Stage': {'StagePosX': 18.9417,
-                                         'StagePosR': -30.0}}}
-    assert get_stage_rotation_deg(metadata) == -30.0
-
-    path = str(tmp_path / 'no_rotation.tif')
-    write_vendor_tiff(path, '<Vendor><Scan><rotation>90</rotation></Scan>'
-                            '</Vendor>')
-    with TiffFile(path) as tif:
-        assert get_stage_rotation_deg(get_extra_metadata(tif)) is None
 
 
 if __name__ == '__main__':
@@ -343,5 +319,5 @@ if __name__ == '__main__':
         test_position_beyond_stage_travel_is_metres(tmp_path)
         test_position_prefers_the_stage_section()
         test_position_ignores_other_fields(tmp_path)
-        test_rotation_from_scan(tmp_path)
-        test_stage_rotation(tmp_path)
+        for case in ROTATION_CASES.values():
+            test_rotations(*case)
