@@ -93,5 +93,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
+          # leave dist/ free of attestation files, or the PyPI step refuses to make its own
+          attestations: false
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
