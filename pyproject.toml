@@ -6,8 +6,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-  {name = "Joost de Folter"},
-  {email = "folterj@gmail.com"},
+  {name = "Joost de Folter", email = "folterj@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
