@@ -194,7 +194,8 @@ def repair_text(value: Any) -> Any:
 # how many micrometres a unit is worth, keyed by the spellings vendors
 # use. Angstrom is included because electron microscopes report in it.
 UM_CONVERSIONS = {
-    'a': 1e-4, 'angstrom': 1e-4,
+    'a': 1e-4, 'å': 1e-4, 'angstrom': 1e-4,
+    'pm': 1e-6, 'picometer': 1e-6, 'picometre': 1e-6,
     'nm': 1e-3, 'nanometer': 1e-3, 'nanometre': 1e-3,
     'um': 1, 'µm': 1, 'micrometer': 1, 'micrometre': 1, 'micron': 1,
     'mm': 1e3, 'millimeter': 1e3, 'millimetre': 1e3,
@@ -572,9 +573,9 @@ def get_rotation_deg(metadata: Dict) -> Optional[float]:
     degrees, or None.
 
     This is what places the image beside others by their stage positions.
-    The scan rotation turns the raster against the stage, so the image is
-    turned the other way: a row of Ciqtek tiles at ElectricRotate -135
-    lines up at 135. The stage rotation turns the sample rather than the
+    The scan rotation is taken as it is written. A stage whose y axis points
+    up, as a 2D Fibics grid's does, needs its y position inverted in the
+    source metadata. The stage rotation turns the sample rather than the
     axes the stage positions are in, so it plays no part.
     """
     implied_unit = implied_angle_unit(metadata)
@@ -592,8 +593,8 @@ def get_rotation_deg(metadata: Dict) -> Optional[float]:
             scan_rotation = parse_quantity(field_value, unit or implied_unit,
                                            DEGREE_CONVERSIONS)
             if scan_rotation is not None:
-                # subtracted from 0.0 rather than negated, which makes -0.0
-                return 0.0 - scan_rotation
+                # added to 0.0, which turns a written -0 into 0.0
+                return 0.0 + scan_rotation
     return None
 
 
