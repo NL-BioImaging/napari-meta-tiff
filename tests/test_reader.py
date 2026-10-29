@@ -75,7 +75,7 @@ def test_reader_spatial_kwargs(tmp_path):
     # only x was stated, and the axes are ordered as the data is
     assert add_kwargs['translate'] == (0.0, 1500.0)
     # the scan rotation, which turns the image the other way
-    assert add_kwargs['rotate'] == 30.0
+    assert add_kwargs['rotate'] == -30.0
 
 
 def test_reader_without_spatial_metadata(tmp_path):
