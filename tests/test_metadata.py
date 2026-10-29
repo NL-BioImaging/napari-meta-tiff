@@ -48,11 +48,17 @@ def test_garbled_micro_sign_is_repaired(tmp_path):
     assert metadata['65000']['Vendor']['Beam']['HFW'] == '21.12µm'
 
 
-def test_pixel_size_from_vendor_fields(tmp_path):
+@pytest.mark.parametrize('xml', [
+    '<Vendor><pixelsizex>1.6528e-9</pixelsizex>'
+    '<pixelsizey>1.6528e-9</pixelsizey></Vendor>',
+    # FEI Titan names the axes inside the pixel size
+    '<Metadata><BinaryResult><PixelSize><X>1.6528e-9</X><Y>1.6528e-9</Y>'
+    '</PixelSize></BinaryResult></Metadata>',
+])
+def test_pixel_size_from_vendor_fields(tmp_path, xml):
     """A vendor stating the pixel size is read, metres where unstated."""
     path = str(tmp_path / 'vendor.tif')
-    write_vendor_tiff(path, '<Vendor><pixelsizex>1.6528e-9</pixelsizex>'
-                            '<pixelsizey>1.6528e-9</pixelsizey></Vendor>')
+    write_vendor_tiff(path, xml)
     with TiffFile(path) as tif:
         pixel_size = get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE)
     assert pixel_size == pytest.approx({'x': 1.6528e-3, 'y': 1.6528e-3})

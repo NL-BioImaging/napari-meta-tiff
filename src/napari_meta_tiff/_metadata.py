@@ -419,12 +419,18 @@ def stated_pixel_size(metadata: Dict, shape: Dict[str, int]) -> Dict:
         if not (name.endswith(PIXEL_SIZE_NAMES)
                 or (name.endswith('pixel') and suffix in DIMENSION_SUFFIXES)):
             continue
-        size = parse_quantity(value, sibling_unit(key, siblings)
-                              or implied_unit(name))
-        if size is None:
-            continue
-        for each_axis in (axis,) if axis else ('x', 'y'):
-            pixel_size.setdefault(each_axis, size)
+        unit = sibling_unit(key, siblings) or implied_unit(name)
+        size = parse_quantity(value, unit)
+        if size is not None:
+            for each_axis in (axis,) if axis else ('x', 'y'):
+                pixel_size.setdefault(each_axis, size)
+        elif isinstance(value, dict) and not axis:
+            # a size per axis, as in FEI's PixelSize {X, Y}
+            for axis_key, axis_value in value.items():
+                each_axis = dict(AXIS_SUFFIXES).get(normalise_name(axis_key))
+                axis_size = parse_quantity(axis_value, unit)
+                if each_axis and axis_size is not None:
+                    pixel_size.setdefault(each_axis, axis_size)
     return pixel_size
 
 
