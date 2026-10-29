@@ -8,11 +8,11 @@ Run this module to execute the tests by hand:
 import pytest
 from tifffile import TiffFile, imwrite
 
-from napari_meta_tiff._metadata import (get_extra_metadata,
-                                        get_pixel_size_um, get_position_um,
-                                        get_rotation_deg,
-                                        get_stage_rotation_deg, parse_quantity,
-                                        resolution_pixel_size)
+from napari_meta_tiff.metadata import (get_extra_metadata,
+                                       get_pixel_size_um, get_position_um,
+                                       get_rotation_deg,
+                                       get_stage_rotation_deg, parse_quantity,
+                                       resolution_pixel_size)
 
 from tests._dummy_tiff import (dummy_image, write_ome_tiff,
                                write_resolution_tiff, write_vendor_tiff)

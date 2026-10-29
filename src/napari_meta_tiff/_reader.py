@@ -10,9 +10,9 @@ import logging
 from tifffile import TiffFile
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from napari_meta_tiff._metadata import (get_extra_metadata,
-                                        get_pixel_size_um, get_position_um,
-                                        get_rotation_deg)
+from napari_meta_tiff.metadata import (get_extra_metadata,
+                                       get_pixel_size_um, get_position_um,
+                                       get_rotation_deg)
 
 
 logger = logging.getLogger(__name__)
