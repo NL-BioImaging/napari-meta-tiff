@@ -44,6 +44,11 @@ pip install "napari-meta-tiff[all]"
 Contributions are very welcome. Tests can be run with [tox], please ensure
 the coverage at least stays the same before you submit a pull request.
 
+## Use of AI
+
+Generative AI coding assistants were used in developing this software, including tests and documentation.
+All changes are directed and approved by a maintainer, and checked by automated tests where applicable.
+
 ## License
 
 Distributed under the terms of the [MIT] license,
