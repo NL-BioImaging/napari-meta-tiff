@@ -11,8 +11,7 @@ from tifffile import TiffFile
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from napari_meta_tiff.metadata import (get_extra_metadata,
-                                       get_pixel_size_um, get_position_um,
-                                       get_rotation_deg)
+                                       get_spatial_metadata)
 
 
 logger = logging.getLogger(__name__)
@@ -156,9 +155,10 @@ def spatial_kwargs(tif: TiffFile, series: Any, metadata: Dict) -> Dict:
     """
     axes = [axis.lower() for axis in series.axes]
     shape = dict(zip(axes, series.shape))
-    pixel_size = get_pixel_size_um(tif, metadata, shape)
-    position = get_position_um(metadata)
-    rotation = get_rotation_deg(metadata)
+    spatial = get_spatial_metadata(tif, metadata, shape)
+    pixel_size = spatial['pixel_size']
+    position = spatial['position']
+    rotation = spatial['rotation']
 
     kwargs = {"axis_labels": tuple(series.axes)}
     if pixel_size:
