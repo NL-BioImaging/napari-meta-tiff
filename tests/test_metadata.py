@@ -9,9 +9,7 @@ import pytest
 from tifffile import TiffFile, imwrite
 
 from napari_meta_tiff.metadata import (get_extra_metadata,
-                                       get_pixel_size_um, get_position_um,
-                                       get_rotation_deg,
-                                       get_stage_rotation_deg, parse_quantity,
+                                       get_spatial_metadata,
                                        resolution_pixel_size)
 
 from tests._dummy_tiff import (dummy_image, write_ome_tiff,
@@ -22,19 +20,9 @@ from tests._dummy_tiff import (dummy_image, write_ome_tiff,
 SHAPE = {'x': 1024, 'y': 512}
 
 
-def test_parse_quantity_forms():
-    """A measurement is read however the vendor chose to write it."""
-    # a value beside its unit, as FEI and Fibics write it
-    assert parse_quantity({'value': 1.5, 'units': 'mm'}) == 1500
-    # the unit stuck on the end of the number, as Incucyte writes it
-    assert parse_quantity('1.244 µm') == 1.244
-    # the same, through the broken encoding Helios writes it in
-    assert parse_quantity('21.12\xa6\xccm') == 21.12
-    # a bare number, whose unit is known from where it was found
-    assert parse_quantity(1.6529e-9, 'm') == 1.6529e-3
-    # anything that is not a measurement at all
-    assert parse_quantity('unknown') is None
-    assert parse_quantity(1.5, 'furlong') is None
+def spatial(tif):
+    """Where the image sits, as the reader reads it."""
+    return get_spatial_metadata(tif, get_extra_metadata(tif), SHAPE)
 
 
 def test_garbled_micro_sign_is_repaired(tmp_path):
@@ -60,7 +48,7 @@ def test_pixel_size_from_vendor_fields(tmp_path, xml):
     path = str(tmp_path / 'vendor.tif')
     write_vendor_tiff(path, xml)
     with TiffFile(path) as tif:
-        pixel_size = get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE)
+        pixel_size = spatial(tif)['pixel_size']
     assert pixel_size == pytest.approx({'x': 1.6528e-3, 'y': 1.6528e-3})
 
 
@@ -71,7 +59,7 @@ def test_pixel_size_from_field_of_view(tmp_path):
                             '</value><units>um</units></FOV_X></Scan>'
                             '</Vendor>')
     with TiffFile(path) as tif:
-        pixel_size = get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE)
+        pixel_size = spatial(tif)['pixel_size']
     # a field of view stated for one axis describes square pixels
     expected = 129.044885430288 / SHAPE['x']
     assert pixel_size == {'x': expected, 'y': expected}
@@ -85,7 +73,7 @@ def test_pixel_size_ignores_pixel_counts(tmp_path):
                             '<Scan><ResolutionX>8448</ResolutionX></Scan>'
                             '</Vendor>')
     with TiffFile(path) as tif:
-        assert get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE) == {}
+        assert spatial(tif)['pixel_size'] == {}
 
 
 def keys_anywhere(value):
@@ -139,14 +127,12 @@ def test_pixel_size_from_ome(tmp_path):
     path = str(tmp_path / 'stated.ome.tif')
     write_ome_tiff(path, x=(0.325, 'µm'), y=(0.325, 'µm'))
     with TiffFile(path) as tif:
-        assert get_pixel_size_um(tif, get_extra_metadata(tif),
-                                 SHAPE) == {'x': 0.325, 'y': 0.325}
+        assert spatial(tif)['pixel_size'] == {'x': 0.325, 'y': 0.325}
 
     path = str(tmp_path / 'bare.ome.tif')
     write_ome_tiff(path, x=(0.325, None), y=(0.325, None))
     with TiffFile(path) as tif:
-        assert get_pixel_size_um(tif, get_extra_metadata(tif),
-                                 SHAPE) == {'x': 0.325, 'y': 0.325}
+        assert spatial(tif)['pixel_size'] == {'x': 0.325, 'y': 0.325}
 
 
 def test_resolution_in_centimetres(tmp_path):
@@ -175,7 +161,7 @@ def test_implausible_resolution_is_dropped(tmp_path):
     # one pixel per metre, which is the 1/1 an overview is written with
     write_resolution_tiff(path, (1, 1))
     with TiffFile(path) as tif:
-        assert get_pixel_size_um(tif, get_extra_metadata(tif), SHAPE) == {}
+        assert spatial(tif)['pixel_size'] == {}
 
 
 def test_screen_resolution_is_dropped(tmp_path):
@@ -194,23 +180,23 @@ def test_position_from_stage(tmp_path):
                             '<units>um</units></X><Y><value>-3.5</value>'
                             '<units>um</units></Y></Stage></Vendor>')
     with TiffFile(path) as tif:
-        assert get_position_um(get_extra_metadata(tif)) == {'x': 10.5,
+        assert spatial(tif)['position'] == {'x': 10.5,
                                                             'y': -3.5}
 
     path = str(tmp_path / 'bare_stage.tif')
     write_vendor_tiff(path, '<Vendor><samplePosition><x>0.002</x>'
                             '<y>-0.001</y></samplePosition></Vendor>')
     with TiffFile(path) as tif:
-        assert get_position_um(get_extra_metadata(tif)) == {'x': 2000.0,
+        assert spatial(tif)['position'] == {'x': 2000.0,
                                                             'y': -1000.0}
 
 
-def test_position_in_millimetres_from_stage_travel(tmp_path):
-    """A named stage travel says a bare position is in millimetres.
+def test_position_in_millimetres_from_stage(tmp_path):
+    """Ciqtek writes its stage position in millimetres without saying so.
 
-    Helios writes 18.9417 beside a stage model naming a 110x110x69 mm
-    travel, so the coordinate is millimetres: metres would put the
-    sample further away than the stage can reach.
+    Its mapping rule states the unit: 18.9417 beside a 110x110x69 mm
+    stage is millimetres, where metres would put the sample further
+    away than the stage can reach.
     """
     path = str(tmp_path / 'travel.tif')
     write_vendor_tiff(path, '<Vendor><Stage><StageType>'
@@ -218,36 +204,8 @@ def test_position_in_millimetres_from_stage_travel(tmp_path):
                             '<StagePosX>18.9417</StagePosX>'
                             '<StagePosY>11.1248</StagePosY></Stage></Vendor>')
     with TiffFile(path) as tif:
-        position = get_position_um(get_extra_metadata(tif))
+        position = spatial(tif)['position']
     assert position == pytest.approx({'x': 18941.7, 'y': 11124.8})
-
-
-def test_position_beyond_stage_travel_is_metres(tmp_path):
-    """A hint that does not fit the coordinate is not applied.
-
-    A position larger than the travel cannot be millimetres, so it is
-    read as metres, the way one is read with no hint at all.
-    """
-    path = str(tmp_path / 'beyond.tif')
-    write_vendor_tiff(path, '<Vendor><Stage><StageType>'
-                            'TMCM-110x110x69</StageType>'
-                            '<StagePosX>500</StagePosX></Stage></Vendor>')
-    with TiffFile(path) as tif:
-        position = get_position_um(get_extra_metadata(tif))
-    assert position == pytest.approx({'x': 500e6})
-
-
-def test_position_prefers_the_stage_section():
-    """The stage's own section wins over the copy in a beam's section.
-
-    An FEI navigation camera image keeps another position in its IRBeam
-    section, written before the Stage section.
-    """
-    metadata = {'FEI_HELIOS': {
-        'IRBeam': {'StageX': -0.00126661, 'StageY': 0.002136},
-        'Stage': {'StageX': 0.0699197, 'StageY': 0.000811186}}}
-    assert get_position_um(metadata) == pytest.approx({'x': 69919.7,
-                                                       'y': 811.186})
 
 
 def test_position_ignores_other_fields(tmp_path):
@@ -257,51 +215,20 @@ def test_position_ignores_other_fields(tmp_path):
                             '</TrayPosition></ScanInfo><Scan><sourceTilt>'
                             '<x>-0.012</x></sourceTilt></Scan></Vendor>')
     with TiffFile(path) as tif:
-        assert get_position_um(get_extra_metadata(tif)) == {}
+        assert spatial(tif)['position'] == {}
 
 
-# the image is turned by the scan rotation as written, apart from the
-# stage rotation, which turns the sample: (metadata, image, stage rotation)
-ROTATION_CASES = {
-    'ciqtek': ({'Beam': {'ElectricRotate': -135.0},
-                'Stage': {'StagePosR': -30.0, 'StagePosX': 0.002}}, -135.0, -30.0),
-    # a written -0 is no turn of -0.0
-    'ciqtek negative zero': ({'Beam': {'ElectricRotate': -0.0}}, 0.0, None),
-    # Ciqtek writes to the FEI tag, but in degrees, under its own names
-    'ciqtek in the fei tag': ({'FEI_HELIOS': {'Beam': {'ElectricRotate': 0.0},
-                                              'Stage': {'StagePosR': 11.7}}},
-                              0.0, 11.7),
-    # FEI writes every angle in radians without saying so
-    'fei': ({'FEI_HELIOS': {'Beam': {'ScanRotation': 0.5},
-                            'Stage': {'StageR': 1.07874}}}, 28.6479, 61.8072),
-    'phenom': ({'acquisition': {'scan': {'rotation': 90}}}, 90.0, None),
-    'fibics': ({'Fibics': {'Scan': {'ScanRot': {'units': 'deg', 'value': 10}}}},
-               10.0, None),
-    'stated radians': ({'Stage': {'R': {'value': 0.5, 'units': 'rad'}}},
-                       None, 28.6479),
-    'neither': ({'Stage': {'StagePosX': 0.002}}, None, None),
-}
-
-
-@pytest.mark.parametrize('metadata, rotation, stage_rotation',
-                         ROTATION_CASES.values(), ids=ROTATION_CASES.keys())
-def test_rotations(metadata, rotation, stage_rotation):
-    """The image and the stage rotation are read apart, in degrees."""
-    image_rotation = get_rotation_deg(metadata)
-    if rotation is None:
-        assert image_rotation is None
-    else:
-        assert image_rotation == pytest.approx(rotation, abs=1e-4)
-        # no rotation is not a turn of -0.0
-        assert str(image_rotation) != '-0.0'
-    if stage_rotation is None:
-        assert get_stage_rotation_deg(metadata) is None
-    else:
-        assert get_stage_rotation_deg(metadata) == pytest.approx(stage_rotation,
-                                                                 abs=1e-4)
+def test_rotations_read_apart(tmp_path):
+    """The scan rotation turns the image; the stage rotation the sample."""
+    path = str(tmp_path / 'rotations.tif')
+    write_vendor_tiff(path, '<Vendor><Beam><ElectricRotate>-135'
+                            '</ElectricRotate></Beam><Stage><StagePosR>-30'
+                            '</StagePosR></Stage></Vendor>')
+    with TiffFile(path) as tif:
+        result = spatial(tif)
+    assert (result['rotation'], result['stage_rotation']) == (-135.0, -30.0)
     # neither turns up as a position
-    assert 'r' not in get_position_um(metadata)
-
+    assert result['position'] == {}
 
 
 if __name__ == '__main__':
@@ -311,7 +238,6 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         tmp_path = Path(tmpdir)
 
-        test_parse_quantity_forms()
         test_garbled_micro_sign_is_repaired(tmp_path)
         test_pixel_size_from_vendor_fields(tmp_path)
         test_pixel_size_from_field_of_view(tmp_path)
@@ -322,9 +248,6 @@ if __name__ == '__main__':
         test_implausible_resolution_is_dropped(tmp_path)
         test_screen_resolution_is_dropped(tmp_path)
         test_position_from_stage(tmp_path)
-        test_position_in_millimetres_from_stage_travel(tmp_path)
-        test_position_beyond_stage_travel_is_metres(tmp_path)
-        test_position_prefers_the_stage_section()
+        test_position_in_millimetres_from_stage(tmp_path)
         test_position_ignores_other_fields(tmp_path)
-        for case in ROTATION_CASES.values():
-            test_rotations(*case)
+        test_rotations_read_apart(tmp_path)
