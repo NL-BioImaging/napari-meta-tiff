@@ -54,7 +54,22 @@ jobs:
       # setup-miniconda: https://github.com/conda-incubator/setup-miniconda
       # and
       # tox-conda: https://github.com/tox-dev/tox-conda
-      # this runs the platform-specific tests declared in tox.ini
+      # retried: right after a release of a dependency (imaging-metadata-converter), the PyPI index a runner sees
+      # can lack it for a few minutes; only the environment is retried (--notest), never the tests
+      - name: Install with tox
+        shell: bash
+        run: |
+          for attempt in 1 2 3 4 5; do
+            uvx --with tox-gh-actions tox --notest --recreate && exit 0
+            echo "Install failed (attempt $attempt of 5), retrying in 60 s"
+            sleep 60
+          done
+          exit 1
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          PIP_NO_CACHE_DIR: "1"
+
+      # this runs the platform-specific tests declared in tox.ini, in the environment installed above
       - name: Test with tox
         run: uvx --with tox-gh-actions tox
         env:
