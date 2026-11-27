@@ -32,7 +32,7 @@ dependencies = [
     "tifffile",
     "zarr",
     "imagecodecs",
-    "imaging-metadata-converter>=2.1.0",
+    "imaging-metadata-converter>=2.1.1",
 ]
 
 [project.optional-dependencies]

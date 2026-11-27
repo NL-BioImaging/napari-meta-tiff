@@ -110,12 +110,14 @@ def test_napari_layer_in_micrometres(tmp_path):
     layer = add_layers(viewer, path)[0]
 
     assert tuple(layer.scale) == (0.25, 0.25)
-    assert tuple(layer.translate) == (-4, 10)     # ordered y, x
+    # ordered y, x; a stage written this way is Fibics', whose y axis points
+    # up, so its y of -4 is 4 in the image's frame, which points down
+    assert tuple(layer.translate) == (4, 10)
     assert [str(unit) for unit in layer.units] == ['micrometer'] * 2
     assert tuple(layer.axis_labels) == ('Y', 'X')
     # a quarter of a micrometre per pixel, from where the stage was:
     # the far corner is the last pixel, not one past it
-    assert layer.extent.world[1].tolist() == [-4 + (size - 1) * 0.25,
+    assert layer.extent.world[1].tolist() == [4 + (size - 1) * 0.25,
                                               10 + (size - 1) * 0.25]
 
 
