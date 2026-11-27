@@ -197,7 +197,8 @@ def test_position_in_millimetres_from_stage(tmp_path):
 
     Its mapping rule states the unit: 18.9417 beside a 110x110x69 mm
     stage is millimetres, where metres would put the sample further
-    away than the stage can reach.
+    away than the stage can reach. Its stage y points up, against the
+    image's, so y is inverted.
     """
     path = str(tmp_path / 'travel.tif')
     write_vendor_tiff(path, '<Vendor><Stage><StageType>'
@@ -206,7 +207,7 @@ def test_position_in_millimetres_from_stage(tmp_path):
                             '<StagePosY>11.1248</StagePosY></Stage></Vendor>')
     with TiffFile(path) as tif:
         position = spatial(tif)['position']
-    assert position == pytest.approx({'x': 18941.7, 'y': 11124.8})
+    assert position == pytest.approx({'x': 18941.7, 'y': -11124.8})
 
 
 def test_position_ignores_other_fields(tmp_path):
