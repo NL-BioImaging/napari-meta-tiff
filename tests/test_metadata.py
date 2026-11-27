@@ -180,8 +180,9 @@ def test_position_from_stage(tmp_path):
                             '<units>um</units></X><Y><value>-3.5</value>'
                             '<units>um</units></Y></Stage></Vendor>')
     with TiffFile(path) as tif:
-        assert spatial(tif)['position'] == {'x': 10.5,
-                                                            'y': -3.5}
+        # a stage written this way is Fibics', whose y axis points up, so
+        # its y is inverted to the image's, which points down
+        assert spatial(tif)['position'] == {'x': 10.5, 'y': 3.5}
 
     path = str(tmp_path / 'bare_stage.tif')
     write_vendor_tiff(path, '<Vendor><samplePosition><x>0.002</x>'
